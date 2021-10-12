@@ -1,0 +1,140 @@
+'' =================================================================================================
+''
+''   File....... simple_adc1.spin2
+''   Purpose.... Simple ADC driver with user adjustable calibration (one pin)
+''               * For applications where speed is not important.
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''               -- see below for terms of use
+''   E-mail..... 
+''   Started....
+''   Updated.... 16 JUL 2021
+''
+'' =================================================================================================
+
+
+
+var
+
+  long  measurement_gio ' ,measurement_vio,measurement_in
+  long  cal_l ', cal_h 
+  long  scale_factor
+  long  io_pin
+
+
+pub raw( ) : val
+  '' Reports the raw adc reading
+  val := rdpin( io_pin )
+
+pub mv( ) : mv
+  '' Reports voltage at ADC pin
+  '' mV is a good unit since the quantization noise 
+  '' is normally more than 1 mV. 
+
+  mv := ((scale_factor * (rdpin( io_pin )-measurement_gio))>>10 ) + cal_l
+
+pub c( ) : c
+  '' Reports temperature reading in degrees Celcius 
+  c := ((mv()-871)*100)/-565 + 30               ' Conversion for LMT84 temperature sensor 
+
+
+pub drvh()
+  pinhigh( io_pin )
+  wrpin( io_pin, p_adc   | p_adc_1x | p_oe )     ' ADC input with digital output
+
+pub drvl()
+  pinlow( io_pin )
+  wrpin( io_pin, p_adc   | p_adc_1x | p_oe )     ' ADC input with digital output
+  
+pub flth()
+  wrpin( io_pin, p_adc   | p_adc_1x )          ' ADC input 
+  pinhigh( io_pin )
+  
+pub fltl()
+  wrpin( io_pin, p_adc   | p_adc_1x )          ' ADC input 
+  pinlow( io_pin )
+  
+pub start( pin )
+  start_drv( pin, 3300, 0 )
+
+pub start_drv( pin, vio_cal, gio_cal ) | measurement_vio 
+  '' Start ADC and calibrate by driving IO pin high and low.
+  '' This avoids errors from variations in the 1x, gio, and vio
+  '' resistors. 
+  '' A series resistor is required to prevent excessive current. 
+  '' 
+  '' A P2 IO pin in strongest drive mode has a resistance
+  '' of about 22 Ohms. So, the series resistor should be >2200 Ohms. 
+  '' 
+  '' A P2 ADC pin has an input resistance of about 500k Ohms. 
+  '' So, the series resistance should be <5000 Ohms. 
+
+  io_pin := pin
+  ' cal_h := vio_cal ' this doesn't need to be stored
+  cal_l := gio_cal 
+
+  ' ADC init  
+  wrpin( io_pin, p_adc   | p_adc_1x )            ' 
+  wxpin( io_pin, 13 )	                         ' SINC2 sample mode, 8192 clocks 
+  _dirh( io_pin )
+
+
+  pinlow( io_pin )
+
+
+  wrpin( io_pin, p_adc   | p_adc_1x | p_oe )     ' ADC input with digital output
+
+
+  waitx( 8192 * 5 )
+
+
+  measurement_gio  := rdpin(io_pin)
+
+  pinhigh( io_pin )
+
+  waitx( 8192 * 5 )
+
+  measurement_vio  := rdpin(io_pin)
+
+
+  wrpin( io_pin, p_adc   | p_adc_1x )          ' ADC input 
+
+
+ 
+  'adc_tempf_mv := ((3300<<10)/(adc_tempf_vio-adc_tempf_vss) * (rdpin( adc_tempf )-adc_tempf_vss))>>10
+
+  scale_factor := ((vio_cal-gio_cal)<<10)/(measurement_vio-measurement_gio) 
+
+  waitx( 8192 * 5 )
+
+
+pub stop()
+'' Shut down the smart pin
+  _dirl( io_pin )
+  wrpin( io_pin , 0 )     ' FIXME double check
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

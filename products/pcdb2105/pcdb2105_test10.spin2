@@ -1,0 +1,264 @@
+'' =================================================================================================
+''
+''   File....... pcdb2105_test10.spin2
+''   Purpose.... Test program to verify functionality of power converters.
+''               Turns on both 12v and high voltage outputs. 
+''     
+''               Not maintained at the moment, changes are going to pcdb2105_testvolt2.spin2
+'' 
+''               No day/night switching. 
+''               You will likely need to power it up manually when 
+''               the sunlight has reached sufficient intensity. 
+''
+''
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+'' 
+''   E-mail..... 
+''   Started....
+''   Updated.... 
+''
+'' =================================================================================================
+
+
+con { timing }
+  _xtlfreq = 24_000_000
+  _clkfreq = 80_000_000
+
+con { terminal }
+
+  BR_TERM  = 230_400                                            ' terminal baud rate
+
+  #0, T_PST, T_ANSI                                             ' terminal types
+
+  T_TYPE = T_PST
+
+
+con { fixed io pins }
+
+  RX1    = 63  { I }                                            ' programming / debug
+  TX1    = 62  { O }
+
+
+  LED2   = 57  { O }                                            ' Eval and Edge LEDs
+  LED1   = 56  { O }
+
+
+con 
+  PIN_TEMPB  = 39 
+  PIN_TEMPF  = 38
+  PIN_TEMPT  = 52 
+
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  relays : "drv8912_reva"                                       '   DRV8912 (inline PASM2)
+  term : "jm_fullduplexserial"                                  ' * serial IO for terminal
+  ansi : "jm_ansi"                                              '   ANSI terminal control sequences
+  dcdc  : "pcdb2105_lib2"                                       ' *
+  'can1   : "canbus_500k_reva"                                   ' *
+
+
+' * uses cog when loaded
+
+
+dat { pre-initialized }
+
+  Message       byte    32[8]                                   ' spaces for padding
+                byte    "PrOPELLEr 2"
+                byte    32[8]
+                byte    0
+
+var
+
+'  long  adc_out[20]
+
+  long  Vpv,Ipv,Ppv
+  long  lastVpv,lastIpv,lastPpv     ' to compute deltas for MPPT
+
+  long  Vhv,Ihv,Phv
+  long  effic
+'  long  user_vpv
+
+
+pub main() | x, t, i, a, pout
+'  user_vpv := 10000 
+
+	'	pinh(25) '12V RPP 
+
+  setup()
+
+
+  'term.str( string("CANBUS",13,10) )
+  'can1.Loopback(true)
+''  can1.Start(6,7,250000) ' FIXME, needs more sysclock or better coding, 24M is way too low
+  
+
+
+
+  dcdc.start( )
+
+  if 0 
+    repeat
+      relays.inout(10,8)
+      waitms(1)
+
+'
+  'repeat
+  '   waitms(1)
+
+  repeat
+     if dcdc.measurement_count <> t
+        t := dcdc.measurement_count
+        dcdc.set_hv_on()
+
+        '_drvnot(27) 'LED interference
+
+        term.dec( dcdc.buck_mv_external )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_mv )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.pv_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.pv_mv )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_mv )
+        term.str( string(",") )
+
+        pout := (dcdc.buck_ma*dcdc.buck_mv + dcdc.hv_ma*dcdc.hv_mv)
+        term.dec(  pout/1000  )
+        term.str( string("mW,") )
+
+        ' Efficiency  may be off a few percent due to measurement accuracy
+        term.dec(  pout / ((dcdc.pv_ma*dcdc.pv_mv)/100)     )
+        term.str( string("%,") )
+
+
+        term.dec( dcdc.tempf() )
+        term.str( string("C,") )
+
+        term.dec( dcdc.tempt() )
+        term.str( string("C,") )
+
+        term.dec( dcdc.tempb() )
+        term.str( string("C,") )
+
+
+        term.dec( dcdc.mppt_mv() )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_output_limit_count() )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_output_limit_count() )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_mv_external  )
+        term.str(string( 13, 10))
+
+
+        waitx(clkfreq/10 )   ' console rate limit
+
+
+	'waitms(300)
+
+{{
+     if 0'  can1.ID                                          ' Check if an ID was received
+       if can1.ID > $7FF
+         term.Hex(can1.ID)
+       else
+         term.Hex(can1.ID)
+       'fds.Tx($09)                                         
+       if can1.CheckRTR
+         term.Str(string("remote transmission request"))
+       else
+         a := can1.DataAddress                           ' DataAddress returns the address of a string of data bytes
+         repeat byte[a++]                                  '  The first byte contains the string length 
+           term.Hex(byte[a++])                            '  Display bytes
+           term.str(string(" "))
+       term.str(string( 13, 10))
+       can1.NextID                                       ' Clear current ID buffer and advance to next
+}}
+
+  ' Relay economizer demo, not maintained
+  repeat
+    term.hex( relays.inout(8,$02) )
+    'term.str(string("High"))
+    term.str(string(10,13))
+  '  pinhigh(1) ' turn on economizer + sensor power
+    waitms(300)
+
+    term.hex( relays.inout(8,$00) )
+
+    waitms(300)
+    pinlow(1) ' turn off economizer + sensor power
+
+    'relays.out(8,0)
+    'term.str(string("Low"))
+    term.str(string(10,13))
+    waitms(300)
+
+
+
+pub setup()
+
+'' Setup IO and objects for application
+  relays.start()
+
+  term.tstart(BR_TERM)                                          ' start terminal io
+
+pub wait_for_terminal(clear)
+
+'' Wait for terminal to be open and key pressed
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    clear_screen()
+
+
+pub clear_screen()
+
+  if (T_TYPE == T_PST)
+    term.tx(term.HOME)
+    term.tx(term.CLS)
+  else
+    term.str(ansi.hide_cursor())
+    term.str(ansi.home())
+    term.str(ansi.cls())
+
+
+con { license }
+
+{{
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+}}

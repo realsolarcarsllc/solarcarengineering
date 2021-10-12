@@ -1,0 +1,206 @@
+'' =================================================================================================
+''
+''   File....... fb_revc.spin2
+''   Purpose.... Full bridge driver for PCDB2105
+''                   
+''               
+'' 
+''
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+'' 
+''   E-mail..... 
+''   Started....
+''   Updated.... 
+''
+'' =================================================================================================
+
+
+
+CON
+
+
+  'pin assignments normal 
+  PSFB_LEADH = 37
+  PSFB_LEADL = 36
+  PSFB_LAGH = 35
+  PSFB_LAGL = 34
+  BUCK_H = 33
+  BUCK_L = 32
+
+
+{{
+  ' TEST
+  PSFB_LEADH = 33
+  PSFB_LEADL = 32
+  PSFB_LAGH = 35
+  PSFB_LAGL = 34
+  BUCK_H = 37
+  BUCK_L = 36
+}}
+' TODO: 
+'   watchdog timer 
+'   dynamic duty cycle and more 
+'   shutdown mode
+ 
+  
+    
+VAR
+    long cog
+
+'    long dynamic_load_length      ' 3=all below dynamically programmable, 1=only duty cycle programmable
+    long spin_clocks_halfone      ' Duty cycle, keep below clocks_total-???? 
+    long spin_clocks_total        ' The number of clock cycles for half a complete switching cycle 
+    long spin_clocks_deadtime     ' Deadtime length 
+    
+
+PUB stop
+'' Stop driver cog
+
+  if cog
+    cogstop(cog-1)
+  cog := 0 
+
+PUB Start(): control_addr
+
+  spin_clocks_halfone  :=    0 ' FIXME
+  spin_clocks_total    :=  500
+  spin_clocks_deadtime :=   10 
+
+  dynamic_reg_n:= 0
+  cog := cognew(@psfbcog, @spin_clocks_halfone) + 1
+  control_addr := @spin_clocks_halfone 
+
+
+  
+DAT
+      'assembly code starts here'
+      org
+psfbcog
+                drvl    #PSFB_LEADH
+                drvl    #PSFB_LAGH
+                drvl    #PSFB_LEADL
+                drvl    #PSFB_LAGL
+                drvl    #BUCK_H
+                drvl    #BUCK_L
+
+
+                getct   psfb_ct
+                addct1  psfb_ct,clocks_total        ' delay before starting
+                waitct1                             ' just in case we were in a bad state
+                
+                
+                'mov     outa,_llc_mask_bl          ' charge bootstrap
+                                                   ' Turn on low side to charge the 
+  '              drvh    #PSFB_LEADL                ' high side bootstrap capacitors.
+  '              drvh    #PSFB_LAGL                 '  L  H  L  H
+
+                addct1  psfb_ct,clocks_total
+                waitct1 
+
+		and	dynamic_reg_n,#3		' limit to safe values 
+                                                   
+_psfb_loop           
+	'	setq	dynamic_reg_n				' the number of registers to update 
+		rdlong	clocks_halfone,ptra
+
+                fge     clocks_halfone,#10  wc   ' C=unsigned(D<S)
+              '  mov     tmp,#0 wc               ' Forced continous test mode 
+                mov     clocks_halftwo,clocks_total
+                sub     clocks_halftwo,clocks_halfone
+                
+      '          rdlong  _llc_deadtime,_llc_dt_addr
+'                sub     clocks_halftwo,clocks_deadtime     
+'                sub     clocks_halftwo,clocks_deadtime    
+
+                ' We could update the duty cycle halfway through. 
+                ' We don't because we want the transformer to 
+                ' stay DC balanced even if the programmed duty cycle 
+                ' is unstable or being maliciously manipulated.  
+                
+                                                   ' DH DL GH GL 
+                ' The incoming state at this time is  L  H  L  H
+                ' The same whether we came from the
+                ' runtime loop or the initialization 
+                ' bootstrap precharge.
+
+                addct1  psfb_ct,clocks_halftwo     ' 
+                waitct1                                       ' wait for part 2  
+
+      '          drvh    #PSFB_LEADL                '  
+      'if_nc     drvh    #PSFB_LAGH                 '  
+      if_nc     mov     outb,mask_DL_GH
+      if_c      mov     outb,mask_DL
+
+                addct1  psfb_ct,clocks_halfone
+                waitct1                                       ' wait for part 1
+
+         '       drvl    #PSFB_LEADL                '  
+         '       drvl    #PSFB_LAGH                 '  
+                mov     outb,#0 
+
+
+
+                addct1  psfb_ct,clocks_halftwo     ' 
+                waitct1                                       ' wait for part 2  
+
+      'if_nc     drvh    #PSFB_LEADH                '  
+      '          drvh    #PSFB_LAGL                 '  
+      if_nc     mov     outb,mask_DH_GL
+      if_c      mov     outb,mask_GL
+
+                addct1  psfb_ct,clocks_halfone
+                waitct1                                       ' wait for part 1
+
+                'drvl    #PSFB_LEADH                '  
+                'drvl    #PSFB_LAGL                 ' 
+		mov	outb,#0 
+
+ 
+                jmp     #_psfb_loop
+                
+  
+
+
+psfb_ct          long      0
+tmp              long      0
+dynamic_reg_n    long      0
+clocks_halftwo   long      0 ' dynamically calculated 
+mask_DH_GL       long    (1<<(PSFB_LEADH&31)) | (1<<(PSFB_LAGL&31))
+mask_GL          long    (1<<(PSFB_LAGL&31))
+mask_DL_GH       long    (1<<(PSFB_LEADL&31)) | (1<<(PSFB_LAGH&31))
+mask_DL          long    (1<<(PSFB_LEADL&31))
+clocks_halfone   long    100
+clocks_total     long   1664
+clocks_deadtime  long     30
+
+'  400nS 
+'  700nS with 471 cap accross transformer 
+
+' all important data is stored before the dynamically loaded values
+
+fit
+
+
+
+con { license }
+
+{{
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+}}

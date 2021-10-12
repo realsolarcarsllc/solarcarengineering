@@ -1,0 +1,976 @@
+'*****************************************
+'*  PCDB2105 Voltage regulator           *
+'*  12v buck converter PID controller
+'*    + bumpless start
+'*  HV full bridge PI controller 
+'*  7 channels of sinc2 ADC
+
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+
+'*   80MHz sysclock                      *
+'*  832 clocks/sample
+'*  96153.85 Hz sample rate 
+'*  832*832 = 692224 full scale reading
+'*  ADC_SHR 5    /32 = 21632  keep this under 32767 
+'*****************************************
+
+
+
+CON
+
+
+
+
+  PIN_V12CAP   = 28 
+  PIN_I12      = 29 
+  PIN_IPV      = 30
+  PIN_VPV      = 31 
+  PIN_BLOCK1   = 28 + (3<<6)
+ 
+  IND_V12CAP   = 0
+  IND_I12      = 1
+  IND_IPV      = 2
+  IND_VPV      = 3
+  IND_IHV      = 4
+  IND_VHVB     = 5
+  IND_VHVBP    = 6
+  IND_VHVBM    = 7
+  IND_BUCK_IV_COUNT  = 8         ' averages only
+  IND_HV_IV_COUNT    = 9         ' averages only
+
+  ADC_SHR      = 5 
+
+
+  PIN_TPV      = 38
+  PIN_T12      = 39
+  PIN_VLEAD    = 40
+  PIN_VTRANS   = 41
+  PIN_VLAG     = 42
+  PIN_IHV      = 43
+
+  PIN_BLOCK_HV = 43 | (4<<6) 
+
+  PIN_HVBP_IN = 45
+  PIN_HVBM_IN = 47
+ 
+  PIN_VPV_RPP = 26 
+ 
+  PIN_TTRANS   = 52
+
+  CONTROL_MON = 10
+
+
+VAR	long cog		'status
+        long m_ptr
+        long a_ptr
+
+	long ctrl_mppt_mv
+	long ctrl_buck_on
+	long ctrl_buck_mv
+	long ctrl_buck_ma
+	long ctrl_hv_on
+	long ctrl_hv_mv         ' scaled by /10
+	long ctrl_hv_ma
+	long ctrl_hv_ma_zero
+	long ctrl_buck_ma_zero
+
+        long fast_count                  ' written by ASM core
+	long fast_measurements[16]
+        long slow_count
+	long slow_measurements[16]
+
+
+	long av_base_pin_
+	long flag
+
+OBJ
+  buck : "buck_reve"
+  psfb : "fb_revc"
+
+
+
+PUB start( ) : okay
+
+'' Start VGA driver cog
+
+  stop
+
+  flag := 0
+  m_ptr := @fast_count
+  a_ptr := @slow_count
+
+  ' ********************
+  ' * Default Settings *
+  ' ********************
+
+  ctrl_mppt_mv := 11000
+  ctrl_buck_on := 0
+  ctrl_buck_mv := 12000
+  ctrl_buck_ma :=  2000
+  ctrl_hv_on := 0
+  ctrl_hv_mv := 39000 ' /10 
+  ctrl_hv_ma := 1200   
+  ctrl_hv_ma_zero := 0 
+  ctrl_buck_ma_zero := 0 
+
+
+  pwm_out_addr := psfb.Start()
+  buck_pwm_addr := buck.Start()
+
+  okay := cog := cognew( @adc_start, @m_ptr ) + 1
+
+
+
+' ******************************************** 
+' *         User Methods start here          *
+' ******************************************** 
+
+
+' High Speed measurements (single ADC sample)
+
+PUB fast_hv_mv() : mv
+   mv := fast_measurements[IND_VHVB]*10
+
+PUB fast_hvp_mv() : mv
+   mv := fast_measurements[IND_VHVBP]*10
+
+PUB fast_hvm_mv() : mv
+   mv := fast_measurements[IND_VHVBM]*10
+
+PUB fast_hv_ma() : ma
+   ma := fast_measurements[IND_IHV]-ctrl_hv_ma_zero 
+
+PUB fast_buck_mv() : mv
+   mv := fast_measurements[IND_V12CAP]
+
+PUB fast_buck_ma() : ma
+   ma := fast_measurements[IND_I12]-buck_hv_ma_zero
+
+PUB fast_pv_mv() : mv
+   mv := fast_measurements[IND_VPV]
+
+PUB fast_pv_ma() : ma
+   ma := fast_measurements[IND_IPV]
+
+' Instrumentation measurements (averaged)
+
+PUB hv_mv() : mv
+   mv := slow_measurements[IND_VHVB]*10
+
+PUB hvp_mv() : mv
+   mv := slow_measurements[IND_VHVBP]*10
+
+PUB hvm_mv() : mv
+   mv := slow_measurements[IND_VHVBM]*10
+
+PUB hv_ma() : ma
+   ma := slow_measurements[IND_IHV]-ctrl_hv_ma_zero
+
+PUB buck_mv() : mv
+   mv := slow_measurements[IND_V12CAP]
+
+PUB buck_ma() : ma
+   ma := slow_measurements[IND_I12]-ctrl_buck_ma_zero
+
+PUB pv_mv() : mv
+   mv := slow_measurements[IND_VPV]
+
+PUB pv_ma() : ma
+   ma := slow_measurements[IND_IPV]
+
+PUB buck_output_limit_count() : n
+   n := slow_measurements[IND_BUCK_IV_COUNT]
+
+PUB hv_output_limit_count() : n
+   n := slow_measurements[IND_HV_IV_COUNT]
+
+' Counters, used to determine updated values
+PUB measurement_count() : n
+   n := slow_count
+
+PUB fast_measurement_count() : n
+   n := fast_count
+
+PUB hv_ma_autozero() 
+   ctrl_hv_ma_zero := slow_measurements[IND_IHV] ' TODO range check 
+
+PUB buck_ma_autozero() 
+   ctrl_buck_ma_zero := slow_measurements[IND_I12]
+
+PUB set_vmppt( mv )
+   if (mv >= 11000) and (mv <= 50000)
+      ctrl_mppt_mv := mv 
+   else
+      ctrl_mppt_mv := 12000 
+
+PUB set_hv_mv( mv )
+   if (mv >= 0) and (mv <= 420000)
+      ctrl_hv_mv := mv/10
+
+PUB set_hv_ma( ma )
+   if (ma >= 0) and (ma <= 1200)
+      ctrl_hv_ma := ma
+
+PUB set_buck_mv( mv )
+   if (mv >= 0) and (mv <= 50000)
+      ctrl_buck_mv := mv
+
+PUB set_buck_ma( ma )
+   if (ma >= 0) and (ma <= 10000)
+      ctrl_buck_ma := ma
+
+PUB set_hv_on( )
+      ctrl_hv_on := 1
+
+PUB set_hv_off( )
+      ctrl_hv_on := 0
+
+PUB set_buck_on( )
+      ctrl_buck_on := 1
+
+PUB set_buck_off( )
+      ctrl_buck_on := 0
+
+PUB stop()
+'' Stop driver cog
+  buck.stop()
+
+  psfb.stop()
+  
+  if cog
+    cogstop(cog-1)
+  cog := 0 
+
+'
+'
+'*********************************
+'*    *
+'*********************************
+
+DAT             org
+'
+'
+' ADC program setup
+'
+adc_start	
+		rdlong	measurement_ptr,ptra++
+		rdlong	average_ptr,ptra++
+
+
+        	wrpin	adc_mode1,#PIN_HVBP_IN
+        	wrpin	adc_mode1,#PIN_HVBM_IN
+        	wrpin	adc_mode1,#PIN_IHV
+        	wrpin	adc_mode1,#PIN_BLOCK1
+
+		wxpin	adc_x,#PIN_HVBP_IN
+		wypin	adc_y,#PIN_HVBP_IN
+		wxpin	adc_x,#PIN_HVBM_IN
+		wypin	adc_y,#PIN_HVBM_IN
+
+		wxpin	adc_x,#PIN_IHV
+		wypin	adc_y,#PIN_IHV
+		wxpin	adc_x,#PIN_BLOCK1
+		wypin	adc_y,#PIN_BLOCK1
+
+
+		dirh	#PIN_BLOCK_HV
+		dirh	#PIN_BLOCK1
+
+		mov 	measurement_counter,#0
+		mov 	average_counter,#0
+
+		mov	level_base,#samples ' adc_levels	'prepare level_base altd pointer
+		sub	level_base,pin_base
+		bith	level_base,#9
+
+		mov	ijmp1,#adc_isr		'set interrupt jump
+
+		mov	x,#PIN_HVBP_IN	'set base pin IN-rise event
+		or	x,#%001<<6
+		setse1	x
+
+		mov	cycle,#1
+		mov	averages+0,#0
+		mov	averages+1,#0
+		mov	averages+2,#0
+		mov	averages+3,#0
+		mov	averages+4,#0
+		mov	averages+5,#0
+		mov	averages+6,#0
+		mov	averages+7,#0
+		mov	averages+8,#0
+done_init	setint1	#4'  event_se1		'enable interrupt on event, return to Spin2
+
+wait_for_int
+
+
+		cmp	cycle,#8	wz
+	if_z	jmp	#.calc_buck
+
+		' Compute scale factors 
+		alts	cycle,#vio_levels	'lookup vio and gio levels for sample computation
+		mov	mx,0-0
+		alts	cycle,#gio_levels
+		mov	my,0-0
+
+		sub	mx,my			'(3300 << 12) / (vio_level - gio_level)
+		alts	cycle,#cal_max
+		mov	my,0-0
+		alts	cycle,#cal_min
+		sub	my,0-0
+		shl	my,#10
+		qdiv	my,mx			'cordic runs
+
+		mov	cordic_delay_count,#14
+.wait1		djnz	cordic_delay_count,#.wait1
+
+' Cordic should be done about now  ,X main loop just waits for it 
+		getqx	mx			'get QDIV quotient
+		altd	cycle,#cal_gain
+		mov	0-0,mx
+		'drvnot	#PIN_CONTROL1
+
+	'	incmod	cycle,#8		' increment counter, wrap if needed
+
+
+	'	jmp	#wait_for_int
+
+.calc_buck
+		mov	mx,measurements+IND_V12CAP
+		'mov	mx,##13700
+		fges	mx,#0
+		sar	mx,#1	' div 2 to prevent overflow 
+		mul	mx,##832  ' FIXME dynamic duty cycle
+		mov	my,measurements+IND_VPV
+		fges	my,#0
+		sar	my,#1	' div2 to match above
+		qdiv	mx,my
+
+		mov	cordic_delay_count,#14
+.wait2		djnz	cordic_delay_count,#.wait2
+		getqx	buck_init_pwm
+		'drvnot	#PIN_CONTROL1 ' cordic benchmark
+
+	' 15.137khz with fixed djnz 
+	' 24.618hhz waitx
+	' 24.718khz none 
+	' 20.000khz smart djnz 
+	' 26.670khz smart djnz 14
+
+		incmod	cycle,#7		' increment counter, wrap if needed
+		jmp	#wait_for_int
+
+
+'
+'
+' ADC interrupt service routine - runs in background of Spin2 interpreter
+'
+adc_isr		
+           	akpin	#PIN_BLOCK_HV
+		akpin	#PIN_BLOCK1			'ADC samples done, acknowledge pins
+
+
+		rdpin	x,#PIN_HVBP_IN
+		sub	x,diffa+IND_VHVBP
+		add	diffa+IND_VHVBP,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_VHVBP,x
+
+		rdpin	x,#PIN_HVBM_IN
+		sub	x,diffa+IND_VHVBM
+		add	diffa+IND_VHVBM,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_VHVBM,x
+
+		rdpin	x,#PIN_V12CAP
+		sub	x,diffa+IND_V12CAP
+		add	diffa+IND_V12CAP,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_V12CAP,x
+
+		rdpin	x,#PIN_VPV
+		sub	x,diffa+IND_VPV
+		add	diffa+IND_VPV,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_VPV,x
+
+
+
+		rdpin	x,#PIN_IHV
+		sub	x,diffa+IND_IHV
+		add	diffa+IND_IHV,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_IHV,x
+
+		rdpin	x,#PIN_IPV
+		sub	x,diffa+IND_IPV
+		add	diffa+IND_IPV,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_IPV,x
+
+		rdpin	x,#PIN_I12
+		sub	x,diffa+IND_I12
+		add	diffa+IND_I12,x
+		and	x,sinc3_mask
+		shr	x,#ADC_SHR
+		mov     samples+IND_I12,x
+
+	'	setbyte	extadc_mode_fb,buck_init_pwm,#1
+	'	cmp	fault,#0	wz
+	'if_nz	setbyte	extadc_mode_fb,#0,#1
+	'	wrpin	extadc_mode_fb,#CONTROL_MON ' repurposed for control output
+
+
+
+		mov	measurements+IND_VPV,samples+IND_VPV
+		sub	measurements+IND_VPV,gio_levels+IND_VPV
+		muls	measurements+IND_VPV,cal_gain+IND_VPV
+		sar	measurements+IND_VPV,#10			' scale adj
+		add	measurements+IND_VPV,cal_min+IND_VPV		' midpoint offset mV
+
+		mov	measurements+IND_V12CAP,samples+IND_V12CAP
+		sub	measurements+IND_V12CAP,gio_levels+IND_V12CAP
+		muls	measurements+IND_V12CAP,cal_gain+IND_V12CAP
+		sar	measurements+IND_V12CAP,#10			' scale adj
+		add	measurements+IND_V12CAP,cal_min+IND_V12CAP	' midpoint offset mV
+
+
+
+		mov	measurements+IND_I12,samples+IND_I12
+		sub	measurements+IND_I12,gio_levels+IND_I12
+		muls	measurements+IND_I12,cal_gain+IND_I12
+		sar	measurements+IND_I12,#10			' scale adj
+		add	measurements+IND_I12,cal_min+IND_I12		' midpoint offset mV
+
+
+		mov	measurements+IND_IHV,samples+IND_IHV		' hand calibrated
+		sub	measurements+IND_IHV,gio_levels+IND_IHV
+		muls	measurements+IND_IHV,cal_gain+IND_IHV
+		sar	measurements+IND_IHV,#10			' scale adj
+		add	measurements+IND_IHV,cal_min+IND_IHV		' midpoint offset mV
+
+		mov	measurements+IND_IPV,samples+IND_IPV
+		sub	measurements+IND_IPV,gio_levels+IND_IPV
+		muls	measurements+IND_IPV,cal_gain+IND_IPV
+		sar	measurements+IND_IPV,#10			' scale adj
+		add	measurements+IND_IPV,cal_min+IND_IPV		' midpoint offset mV
+
+
+		mov	measurements+IND_VHVBP,samples+IND_VHVBP
+		sub	measurements+IND_VHVBP,gio_levels+IND_VHVBP
+		muls	measurements+IND_VHVBP,cal_gain+IND_VHVBP
+		sar	measurements+IND_VHVBP,#10			' scale adj
+		add	measurements+IND_VHVBP,cal_min+IND_VHVBP	' midpoint offset mV
+
+
+		mov	measurements+IND_VHVBM,samples+IND_VHVBM
+		sub	measurements+IND_VHVBM,gio_levels+IND_VHVBM
+		muls	measurements+IND_VHVBM,cal_gain+IND_VHVBM
+		sar	measurements+IND_VHVBM,#10			' scale adj
+		add	measurements+IND_VHVBM,cal_min+IND_VHVBM	' midpoint offset mV
+
+		mov	measurements+IND_VHVB,measurements+IND_VHVBP
+		sub	measurements+IND_VHVB,measurements+IND_VHVBM
+
+		mov	cordic_delay_count,#1	' let main proceed
+
+		cmp	prestart_counter,#500  wz
+	if_nz	jmp	#.done_drvl
+		
+		drvl	#PIN_BLOCK_HV
+		drvl	#PIN_BLOCK1
+        	wrpin	adc_mode_drv,#PIN_HVBP_IN
+        	wrpin	adc_mode_drv,#PIN_HVBM_IN
+        	wrpin	adc_mode_drv,#PIN_IHV
+        	wrpin	adc_mode_drv,#PIN_BLOCK1	
+
+.done_drvl
+
+		cmp	prestart_counter,#400  wz
+	if_nz	jmp	#.done_mov_gio
+
+		'alts	cycle,#vio_levels	'lookup vio and gio levels for sample computation
+		'mov	x,0
+		'alts	cycle,#gio_levels
+		'mov	y,0
+		
+		mov	gio_levels+0,samples+0
+		mov	gio_levels+1,samples+1
+		mov	gio_levels+2,samples+2
+		mov	gio_levels+3,samples+3
+		mov	gio_levels+4,samples+4
+		mov	gio_levels+5,samples+5
+		mov	gio_levels+6,samples+6
+		mov	gio_levels+7,samples+7
+		drvh	#PIN_BLOCK_HV
+		drvh	#PIN_BLOCK1
+.done_mov_gio
+		
+
+		cmp	prestart_counter,#300  wz
+	if_nz	jmp	#.done_mov_vio
+		mov	vio_levels+0,samples+0
+		mov	vio_levels+1,samples+1
+		mov	vio_levels+2,samples+2
+		mov	vio_levels+3,samples+3
+		mov	vio_levels+4,samples+4
+		mov	vio_levels+5,samples+5
+		mov	vio_levels+6,samples+6
+		mov	vio_levels+7,samples+7
+        	wrpin	adc_mode1,#PIN_HVBP_IN
+        	wrpin	adc_mode1,#PIN_HVBM_IN
+        	wrpin	adc_mode1,#PIN_IHV
+        	wrpin	adc_mode1,#PIN_BLOCK1
+		drvl	#PIN_BLOCK_HV
+		drvl	#PIN_BLOCK1
+.done_mov_vio
+
+
+	' Read parameters
+		setq	#6
+		rdlong	par_mppt_mv,ptra	'TODO setq
+
+	
+
+	' Common Input power limiting controls 
+
+	' in V - R  ' more negative error means decrease pwm 
+		mov	input_v_error,measurements+IND_VPV
+		sub	input_v_error,par_mppt_mv
+		sar	input_v_error,#2
+	
+
+' Buck converter control block 1, pre-runs to initialize the derivative 
+	
+		cmp	buck_run,#1   wz
+	if_nz	mov	buck_setpoint,measurements+IND_V12CAP
+		fges	buck_setpoint,#0	' Don't program negative setpoint, it causes weird problems
+
+
+' R - out V '  more positive error means increase pwm  
+		mov	buck_error_vout,buck_setpoint
+		sub	buck_error_vout,measurements+IND_V12CAP wc
+	'Dep	cmps	buck_error_vout,##-300 wc
+		sar	buck_error_vout,#2
+
+' R - out I  '  more negative error means decrease pwm  
+		mov	buck_error_iout,par_buck_ma
+		sub	buck_error_iout,measurements+IND_I12   ' Current limit seems good, voltage has oscillation 
+		sar	buck_error_iout,#2 ' at high step down
+		'shl	buck_error_iout,#1 ' at high step down
+
+		mov	buck_last_err,buck_error
+		mov	buck_error,buck_error_vout
+		fles	buck_error,buck_error_iout
+		fles	buck_error,input_v_error	wc	' TODO separate Vin regulation with offset
+	if_c	add	averages+IND_BUCK_IV_COUNT,#1		' not at OV or OC limit, do mppt
+
+		mov	buck_pwm,buck_error
+
+		'sar	buck_deriv,#0	
+		add	buck_deriv,buck_error
+		sub	buck_deriv,buck_last_err        wc
+                'sumnc    buck_deriv,#1
+		fles	buck_deriv,##(800<<10)
+		fges	buck_deriv,##-(800<<10)
+	
+
+		cmpsub  prestart_counter,#1   wc
+	if_c	jmp	#adc_isr_done
+
+
+
+	' PV input ideal diode emulator 
+			
+		cmps	measurements+IND_IPV,#200 wcz 
+	if_a	drvh	#PIN_VPV_RPP
+		cmps	measurements+IND_IPV,#0 wcz 
+	if_b	drvl	#PIN_VPV_RPP
+
+
+		dirh	#CONTROL_MON
+
+
+
+	'
+	' Bus overvoltage protection
+	' This could be a result of boosting incoming 12v power 
+		cmps	measurements+IND_VPV,##50000 wcz ' OVP/ reverse current protect
+	if_a	mov	fault,#1 
+	if_a	mov	buck_start_counter,#0 
+
+	' 12v reverse current detection
+		cmps	measurements+IND_I12,##-3000 wcz 'TEST -500 to sensitive for car use
+	if_b	mov	fault,#2
+	if_b	mov	buck_start_counter,#0 
+
+	' 12v over current detection
+		cmps	measurements+IND_I12,##14500 wcz
+	if_a	mov	fault,#3
+	if_a	mov	buck_start_counter,#0 
+
+
+	' 12v voltage detection, FIXME 
+	'	cmps	measurements+IND_V12CAP,par_buck_mv wcz ' If 
+	'if_a	mov	fault,#4
+	'if_a	mov	buck_start_counter,#0 			' don't run the buck converter
+
+	
+
+
+' Buck converter control block 2
+
+' input shaper
+
+
+
+' Voltage ramp shaper 
+
+	
+
+
+	' Voltage ramp 
+		cmp     buck_setpoint,par_buck_mv  wcz ' C= D<S
+	if_b	add     buck_setpoint,#10              ' control input shaper
+	if_a	sub     buck_setpoint,#10              ' input values should be a multiple of this 
+		'mov     buck_setpoint,par_buck_mv  ' BYPASS 
+
+
+
+	' Bumpless buck converter startup
+	'	Setpoint tracks the measured output voltage. 
+	'	Output I limit should not be active since the converter is not running. 
+	' 	Input I or V limits may be active 
+	'	So, error signal should be near zero.
+	'	Error derivative should be small. 
+	'	We preload the integrator with the correct duty cycle
+	' 	Proportional term is zeroed
+
+		cmp	buck_run,#1   wz		' When the buck converter is not running
+	if_nz	mov	buck_integrator,buck_init_pwm	' force the integrator to track the 
+	if_nz	shl	buck_integrator,#12		' calculated duty cycle. Ensures a smooth turn on.
+	if_nz	mov	buck_pwm,#0			
+
+
+	' Buck converter PID calculation 
+		add	buck_integrator,buck_pwm
+		fges	buck_integrator,##0'-460*16
+		fles	buck_integrator,##816<<12
+
+		sar	buck_pwm,#9
+
+		mov	x,buck_integrator
+		sar	x,#12
+		add	buck_pwm,x
+
+		mov	x,buck_deriv
+		sar	x,#11
+		sub	buck_pwm,x
+
+
+
+		cmp	buck_start_counter,##60000	wc	' C = counter < const
+	if_c	add	buck_start_counter,#1		' 
+							' If buck operating conditions have been met 
+							' for a long enough time and 
+		cmp	par_buck_on,#1	wz		' If the buck converter is requested
+		mov	buck_run,#0			' 
+	if_nc_and_z	mov	buck_run,#1		' Turn on buck converter 
+
+
+	' Control output clamping
+		fges	buck_pwm,#0
+		fles	buck_pwm,##800
+		
+
+	' Buck on/off switch 
+		cmp	buck_run,#1	wz	' 
+	if_nz	mov	buck_pwm,#0		' Turn off the buck converter	
+	if_nz	neg	averages+IND_BUCK_IV_COUNT,fault '#1
+
+
+	' Compute the comparator DAC value for half of the bus voltage
+		mov	buck_threshold,measurements+IND_VPV 
+		fges	buck_threshold,#0	' prepare for the following unsigned operations
+		shr	buck_threshold,#1	' place threshold at half of VPV, also helps prevent overflow
+		mul	buck_threshold,##2855   ' TODO dynamic calculation
+		shr	buck_threshold,#20
+
+
+	' Write control outputs, pwm and threshold
+		setq	#1
+		wrlong	buck_pwm,buck_pwm_addr 
+
+
+
+	' HV converter controls
+
+
+	' Voltage ramp shaper 		
+		cmp     vout_setpoint,par_hv_mv    wcz ' C= D<S   ' remember that "mv" is scaled 
+	if_b	add     vout_setpoint,#2              ' control input shaper
+	if_a	sub     vout_setpoint,#2              ' input values should be a multiple of this 
+
+
+
+	' R - out V '  more positive error means increase pwm  
+		mov	output_v_error,vout_setpoint
+		sub	output_v_error,measurements+IND_VHVB
+		sar	output_v_error,#2
+
+' R - out I  '  more negative error means decrease pwm 
+		'mov	par_hv_ma,##400 
+		mov	output_i_error,par_hv_ma
+		sub	output_i_error,measurements+IND_IHV   ' Current limit seems good, voltage has oscillation 
+
+
+		mov	pwm_out,output_v_error
+		fles	pwm_out,output_i_error
+		sub	input_v_error,#200>>2           ' offset
+		fles	pwm_out,input_v_error	wc	' TODO separate Vin regulation with offset
+	if_c	add	averages+IND_HV_IV_COUNT,#1		' not at OV or OC limit, do mppt
+
+
+	'	fges	pwm_out,##-150
+	'	fles	pwm_out,##150
+
+		'sar	pwm_out,#3
+		add	error_int,pwm_out
+		fges	error_int,#0
+		fles	error_int,##1632<<11
+		mov	x,error_int
+		sar	x,#11		
+		sar	pwm_out,#6
+		add	pwm_out,x
+
+
+	' HV on/off switch 
+		cmp	par_hv_on,#1	wz	' 
+	if_nz	mov	pwm_out,#0		' Turn off the converter	
+	if_nz	mov	averages+IND_HV_IV_COUNT,#0
+
+
+		fges	pwm_out,#0
+		fles	pwm_out,##1600
+		wrlong	pwm_out,pwm_out_addr 
+		
+
+	' measurement averaging
+		add	averages+0,measurements+0
+		add	averages+1,measurements+1
+		add	averages+2,measurements+2
+		add	averages+3,measurements+3
+		add	averages+4,measurements+4
+		add	averages+5,measurements+5
+		add	averages+6,measurements+6
+		add	averages+7,measurements+7
+
+
+		add	state,#1
+		cmp	state,##32768	wc	' only output averages occasionally
+	if_c	jmp	#adc_isr_done
+
+		mov	state,#0
+
+		add	average_counter,#1
+		sar	averages+0,#15
+		sar	averages+1,#15
+		sar	averages+2,#15
+		sar	averages+3,#15
+		sar	averages+4,#15
+		sar	averages+5,#15-0 ' orig -8
+		sar	averages+6,#15-0
+		sar	averages+7,#15-0
+
+		setq	#10			' counter before samples
+		wrlong	average_counter,average_ptr
+		
+		mov	averages+0,#0		' This is potentially optional as 
+		mov	averages+1,#0		' not clearing will affect averages
+		mov	averages+2,#0		' by 1/32768.
+		mov	averages+3,#0		' but what about negative numbers?
+		mov	averages+4,#0
+		mov	averages+5,#0
+		mov	averages+6,#0
+		mov	averages+7,#0
+		mov	averages+8,#0
+		mov	averages+9,#0
+
+adc_isr_done
+		mov	ijmp1,#adc_isr		'return to Spin2, start over on next interrupt
+		reti1
+'
+'
+' Defined data
+'
+cycle		long	0	'cycles {0..7, 0, 0} for each state
+state		long	0	'states {0..3}
+
+pwm_out		long    0
+pwm_out_addr    long    0 ' FIXME, need safe default
+output_v_error	long    0
+output_i_error	long    0
+input_v_error   long    0
+error_int       long    0
+vout_setpoint        long    0 
+prestart_counter long   520
+fault           long    0
+
+buck_on		long 	0
+buck_init_pwm	long	0
+buck_pwm        long    0
+buck_threshold  long    38
+buck_pwm_addr   long    0
+buck_error_vout long    0
+buck_error_iout long    0
+buck_integrator long    0
+buck_error	long	0
+buck_current_limit long 8000   ' oscillation at 1a
+'
+' 13v 5a 70c 2021-04-24  
+' 13v 6a 73c tic mosfet +40c 
+
+par_mppt_mv	long	20000
+par_buck_on	long	0
+par_buck_mv	long	12000
+par_buck_ma	long 	2000
+par_hv_on	long	0
+par_hv_mv	long	9000 	' LSB is 10mV, the scaling avoids overflowing the multiplier
+par_hv_ma	long	1000 	
+
+
+buck_setpoint   long    0
+buck_floor      long    0
+buck_last_err	long	0
+buck_deriv	long	0
+buck_run	long    0	' 1=operating, 0=not operating because reverse current detected or other
+				' when 0, stop converter and maintain PID for bumpless start
+				' code should treat all values other than 1 as 0. 
+buck_start_counter long 0
+
+sinc3_mask      long    $07ff_ffff 
+adc_mode1	long	p_adc_1x  | p_adc           ' 
+adc_mode_vio	long	p_adc_vio  | p_adc           ' 
+adc_mode_gio	long	p_adc_gio  | p_adc           ' 
+
+adc_mode_drv	long	p_adc_1x  | p_oe | p_adc           ' 
+
+adc_x           long    $18 ' sinc2, 512 clocks  10 ' /1024
+adc_y           long    832 ' sinc2 integration period 
+
+extadc_mode_in  long    p_adc   | p_adc_1x
+
+'extadc_mode_fb  long    p_plus1_b |  p_invert_output | p_sync_io |  p_logic_b_fb | p_tt_01 | p_adc ' | p_high_1k5 | p_low_1k5
+extadc_mode_fb	long	p_dac_124r_3v | $80<<8
+
+'extadc_mode_fb  long    p_plus1_b |  p_invert_output |   p_logic_b_fb | p_tt_01 | p_adc  | p_high_1k5 | p_low_1k5
+'extadc_mode_fb	long	%0000_0001_000_0010_001_000_000_01_11010_0
+ 
+'.scpmode	long	%0000_0000_000_100011_0000000_00_11010_0	'ADC/scope mode
+'.digitalmode	long	%0000_0000_000_1101_100000000_01_11010_0 	'comp /scope mode
+'.digitalmode	long	%0000_0000_000_000000_0000000_00_11010_0	'scope mode
+'.feedbackmode	long	%0000_0111_0000_0100_0100_0000_0111_0100 	'negative feedback/scope mode
+'                           0    7    0    4    4    0    7    4
+'                              b-1  nft
+'.feedbackmode	long	%0000_0111_0001_1111_0000_0000_0111_0100 	'comp negative feedback/scope mode
+ '                          0    7    1    f    0    0    7    4
+ ' bit 27 doesn't seem to do anything in this program,  
+ ' the ADC seems to work better with bit 16 = 0 (clocked in and out disabled)
+
+adc_modes	long	p_adc_1x  | p_adc 'fixed		'adc modes, by state
+		long	p_adc_float  | p_adc
+		long	p_adc_vio | p_adc
+		long	p_adc_1x  | p_adc
+
+slope		long	1
+'       calibrated?        y       y               y             y 
+'                        V12C     I12     IPV     VPV    IHV   VHVB   VHVBP  VHVBM
+cal_max		long    93931,  17200,  17200,  99000,  4200, 13740, 53940, 53940
+cal_min		long     -269, -17200, -17200,  -7300, -4200,  6800,-53600,-53600
+adc_end				'end of PASM code to load into registers
+'
+'
+' Undefined data
+'
+cordic_delay_count res  1
+measurement_ptr 	res	1
+average_ptr 		res	1
+
+
+pins		res	1	'initially set by Spin2 code to select the pins
+
+x		res	1
+y		res	1
+mx		res	1
+my		res	1
+pin_base	res	1
+pin_count	res	1
+level_base	res	1
+history res 2 
+sampleshift	res 1
+
+average_counter res     1
+averages        res     9
+measurement_counter res 1
+measurements    res     8
+samples		res	8	'raw samples, available via REG[samples][{0..7}]
+diffa           res     8
+gio_levels      res     8
+vio_levels      res     8
+cal_gain	res	8
+
+		fit
+
+'
+'
+'	cycle		operations
+'	------------------------------------------------------------------------------------
+'	0 (1st)		add conversions to levels, compute sample[0]
+'	1		add conversions to levels, compute sample[1]
+'	2		add conversions to levels, compute sample[2]
+'	3		add conversions to levels, compute sample[3]
+'	4		add conversions to levels, compute sample[4]
+'	5		add conversions to levels, compute sample[5]
+'	6		add conversions to levels, compute sample[6]
+'	7 (8th)		add conversions to levels, compute sample[7], switch to gio/vio/pin
+'	0 (9th)		move levels to gio/vio/pin_levels
+'	0 (10th)	clear levels, advance state
+'
+'	state		operations
+'	------------------------------------------------------------------------------------
+'	0		sample gio for calibration
+'	1		sample pin for signal
+'	2		sample vio for calibration
+'	3		sample pin for signal
+'
+
+con { license }
+
+{{
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+}}
+
+

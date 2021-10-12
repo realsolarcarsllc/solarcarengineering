@@ -1,0 +1,3332 @@
+con
+	_xtlfreq = 24000000
+	_clkfreq = 80000000
+	BR_TERM = 230400
+	T_PST = 0
+	T_ANSI = 1
+	T_TYPE = 0
+	RX1 = 63
+	TX1 = 62
+	LED2 = 57
+	LED1 = 56
+	PIN_TEMPB = 39
+	PIN_TEMPF = 38
+	PIN_TEMPT = 52
+	PIN_V12IN = 27
+	PIN_VPV = 31
+dat
+	nop
+	cogid	pa
+	coginit	pa,##$404
+	orgh	$10
+	long	0	'reserved
+	long	0 ' clock frequency: will default to 80000000
+	long	0 ' clock mode: will default to $108130b
+	orgh	$400
+ _ret_	mov	result1, #0
+	org	0
+entry
+	cmp	ptra, #0 wz
+ if_ne	jmp	#spininit
+	mov	ptra, ptr_stackspace_
+	rdlong	pa, #20 wz
+ if_ne	jmp	#skip_clock_set_
+	hubset	#0
+	hubset	##17306376
+	waitx	##200000
+	mov	pa, ##17306379
+	hubset	pa
+	wrlong	pa, #24
+	wrlong	##80000000, #20
+	jmp	#skip_clock_set_
+	orgf	128
+skip_clock_set_
+	call	#_main
+cogexit
+	waitx	##160000
+	cogid	arg01
+	cogstop	arg01
+spininit
+	rdlong	objptr, ptra
+	add	ptra, #4
+	rdlong	result1, ptra
+	add	ptra, #4
+	rdlong	arg01, ptra
+	add	ptra, #4
+	rdlong	arg02, ptra
+	add	ptra, #4
+	rdlong	arg03, ptra
+	add	ptra, #4
+	rdlong	arg04, ptra
+	sub	ptra, #16
+	call	result1
+	jmp	#cogexit
+FCACHE_LOAD_
+    pop	fcache_tmpb_
+    add	fcache_tmpb_, pa
+    push	fcache_tmpb_
+    sub	fcache_tmpb_, pa
+    shr	pa, #2
+    altd	pa
+    mov	 0-0, ret_instr_
+    sub	pa, #1
+    setq	pa
+    rdlong	$0, fcache_tmpb_
+    jmp	#\$0 ' jmp to cache
+ret_instr_
+    ret
+fcache_tmpb_
+    long 0
+COUNT_
+    long 0
+RETADDR_
+    long 0
+fp
+    long 0
+pushregs_
+    pop  pa
+    pop  RETADDR_
+    tjz  COUNT_, #pushregs_done_
+    sub  COUNT_, #1
+    setq COUNT_
+    wrlong local01, ptra
+    add  COUNT_, #1
+pushregs_done_
+    shl  COUNT_, #2
+    add  ptra, COUNT_
+    shr  COUNT_, #2
+    setq #2 ' push 3 registers starting at COUNT_
+    wrlong COUNT_, ptra
+    add    ptra, #12
+    mov    fp, ptra
+    jmp  pa
+ popregs_
+    pop    pa
+    sub    ptra, #12
+    setq   #2
+    rdlong COUNT_, ptra
+    tjz    COUNT_, #popregs__ret
+    shl    COUNT_, #2
+    sub    ptra, COUNT_
+    shr    COUNT_, #2
+    sub    COUNT_, #1
+    setq   COUNT_
+    rdlong local01, ptra
+popregs__ret
+    push   RETADDR_
+    jmp    pa
+
+unsdivide_
+       setq    #0
+       qdiv    muldiva_, muldivb_
+       getqx   muldivb_
+ _ret_ getqy   muldiva_
+
+divide_
+       abs     muldiva_,muldiva_     wc       'abs(x)
+       muxc    itmp2_,#%11                    'store sign of x
+       abs     muldivb_,muldivb_     wcz      'abs(y)
+ if_c  xor     itmp2_,#%10                    'store sign of y
+ if_z  ret
+       call    #unsdivide_
+       test    itmp2_,#1        wc       'restore sign, remainder
+       negc    muldiva_,muldiva_ 
+       test    itmp2_,#%10      wc       'restore sign, division result
+ _ret_ negc    muldivb_,muldivb_
+
+entryptr__
+	long	@entry
+itmp1_
+	long	0
+itmp2_
+	long	0
+objptr
+	long	@objmem
+ptr__Canbus_controller_dat__
+	long	@_Canbus_controller_dat_
+ptr___system__dat__
+	long	@__system__dat_
+ptr__buck_reve_dat__
+	long	@_buck_reve_dat_
+ptr__fb_revc_dat__
+	long	@_fb_revc_dat_
+ptr__jm_fullduplexserial_dat__
+	long	@_jm_fullduplexserial_dat_
+ptr__pcdb2105_lib2_main_
+	long	@_pcdb2105_lib2_main
+ptr__vreg_revb_dat__
+	long	@_vreg_revb_dat_
+ptr_stackspace_
+	long	@stackspace
+result1
+	long	0
+COG_BSS_START
+	fit	480
+	orgh
+hubentry
+
+_main
+	mov	COUNT_, #2
+	call	#pushregs_
+	mov	arg01, #27
+	mov	arg02, ##99000
+	mov	arg03, ##-7200
+	add	objptr, ##1420
+	call	#_led_adc_start_drv
+	call	#_led_adc_mv
+	mov	local01, result1
+	call	#_led_adc_mv
+	cmps	result1, ##-1000 wcz
+ if_a	drvl	#26
+ if_a	drvh	#25
+ if_a	waitx	##800000
+	sub	objptr, ##1328
+	call	#_drv8912_reva_start
+	add	objptr, #28
+	mov	arg04, ##230400
+	mov	arg01, #63
+	mov	arg02, #62
+	mov	arg03, #0
+	call	#_jm_fullduplexserial_start
+	add	objptr, ##1300
+	call	#_led_adc_mv
+	sub	objptr, ##1420
+	cmps	result1, ##-1000 wcz
+ if_be	jmp	#LR__0001
+	mov	arg01, ##@LR__0173
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	mov	arg01, local01
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0174
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+	jmp	#LR__0002
+LR__0001
+	mov	arg01, ##@LR__0175
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	mov	arg01, local01
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0176
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+LR__0002
+LR__0003
+	add	objptr, #84
+	rdlong	local02, objptr
+	sub	objptr, #84
+	cmp	local02, #1 wz
+ if_ne	jmp	#LR__0004
+	call	#_day
+	jmp	#LR__0003
+LR__0004
+	call	#_night
+	jmp	#LR__0003
+	mov	ptra, fp
+	call	#popregs_
+_main_ret
+	ret
+
+_night
+	mov	COUNT_, #5
+	call	#pushregs_
+	mov	local01, #0
+	rdlong	local02, #20
+	shl	local02, #1
+	getct	result1
+	mov	local03, result1
+	sub	local03, local02
+	add	objptr, #88
+	wrlong	#1, objptr
+	mov	arg01, #31
+	mov	arg02, ##99000
+	mov	arg03, ##-7300
+	add	objptr, ##1372
+	call	#_simple_adc1_start_drv
+	sub	objptr, ##1460
+LR__0005
+	add	objptr, #84
+	rdlong	local04, objptr
+	sub	objptr, #84
+	cmp	local04, #1 wz
+ if_e	jmp	#LR__0007
+	add	objptr, #88
+	rdlong	arg01, objptr
+	getct	result1
+	mov	local05, result1
+	shr	local05, #24
+	and	local05, #15
+	shr	arg01, local05
+	and	arg01, #1
+	add	objptr, ##1356
+	wrlong	arg01, objptr
+	sub	objptr, #24
+	call	#_led_adc_update
+	sub	objptr, ##1420
+	getct	result1
+	mov	local04, result1
+	sub	local04, local03
+	cmps	local04, local02 wcz
+ if_be	jmp	#LR__0005
+	add	local03, local02
+	mov	arg01, ##@LR__0177
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1300
+	call	#_led_adc_mv
+	mov	arg01, result1
+	sub	objptr, ##1300
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0178
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1340
+	call	#_simple_adc1_mv
+	mov	arg01, result1
+	sub	objptr, ##1340
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0179
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1340
+	call	#_simple_adc1_mv
+	sub	objptr, ##1460
+	cmps	result1, ##29000 wcz
+ if_be	jmp	#LR__0006
+	add	local01, #1
+	cmps	local01, #5 wcz
+ if_a	add	objptr, #84
+ if_a	wrlong	#1, objptr
+ if_a	sub	objptr, #84
+	jmp	#LR__0005
+LR__0006
+	mov	local01, #0
+	add	objptr, #84
+	wrlong	#0, objptr
+	sub	objptr, #84
+	jmp	#LR__0005
+LR__0007
+	add	objptr, ##1460
+	call	#_simple_adc1_stop
+	sub	objptr, ##1460
+	mov	ptra, fp
+	call	#popregs_
+_night_ret
+	ret
+
+_day
+	mov	COUNT_, #16
+	call	#pushregs_
+	add	objptr, #56
+	wrlong	##12000, objptr
+	mov	local01, #0
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	mov	local02, #0
+	mov	local03, #0
+	mov	arg01, ##@LR__0180
+	add	objptr, #52
+	call	#_jm_fullduplexserial_str
+	drvl	#5
+	mov	arg01, #6
+	mov	arg02, #7
+	mov	arg03, ##500000
+	mov	arg04, #0
+	add	objptr, ##1244
+	call	#_Canbus_controller_start
+	sub	objptr, ##820
+	call	#_pcdb2105_lib2_start
+	mov	arg01, ##405000
+	add	objptr, #180
+	wrlong	##405000, objptr
+	sub	objptr, ##724
+LR__0008
+	add	objptr, #84
+	rdlong	local01, objptr
+	sub	objptr, #84
+	cmp	local01, #1 wz
+ if_ne	jmp	#LR__0023
+	add	objptr, #88
+	rdlong	local04, objptr
+	getct	result1
+	mov	local05, result1
+	shr	local05, #24
+	and	local05, #3
+	shr	local04, local05
+	and	local04, #1
+	mov	arg01, local04
+	add	objptr, ##1356
+	wrlong	arg01, objptr
+	sub	objptr, #24
+	call	#_led_adc_update
+	sub	objptr, #496
+	rdlong	result1, objptr
+	sub	objptr, ##924
+	cmp	result1, local06 wz
+ if_e	jmp	#LR__0012
+	add	objptr, ##924
+	rdlong	result1, objptr
+	mov	local06, result1
+	add	objptr, #496
+	call	#_led_adc_mv
+	mov	arg01, result1
+	sub	objptr, ##1300
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0181
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##808
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##808
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0182
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##812
+	rdlong	result1, objptr
+	sub	objptr, #80
+	rdlong	local07, objptr
+	sub	result1, local07
+	mov	arg01, result1
+	sub	objptr, ##732
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0183
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##816
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##816
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0184
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##820
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##820
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0185
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##824
+	rdlong	result1, objptr
+	sub	objptr, #96
+	rdlong	local07, objptr
+	sub	result1, local07
+	mov	arg01, result1
+	sub	objptr, ##728
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0186
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##688
+	call	#_vreg_revb_hv_mv
+	mov	arg01, result1
+	sub	objptr, ##688
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0187
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##812
+	rdlong	local08, objptr
+	sub	objptr, #80
+	rdlong	local07, objptr
+	sub	local08, local07
+	add	objptr, #76
+	rdlong	result1, objptr
+	qmul	local08, result1
+	getqx	local09
+	add	objptr, #16
+	rdlong	result1, objptr
+	sub	objptr, #96
+	rdlong	local07, objptr
+	sub	objptr, #40
+	sub	result1, local07
+	mov	local04, result1
+	call	#_vreg_revb_hv_mv
+	qmul	local04, result1
+	getqx	local10
+	add	local09, local10
+	sub	objptr, ##728
+	wrlong	local09, objptr
+	mov	muldiva_, local09
+	sub	objptr, #80
+	mov	muldivb_, ##1000
+	call	#divide_
+	mov	arg01, muldivb_
+	add	objptr, #120
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0188
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##816
+	rdlong	local01, objptr
+	add	objptr, #4
+	rdlong	result1, objptr
+	sub	objptr, ##940
+	qmul	local01, result1
+	getqx	muldiva_
+	mov	muldivb_, #100
+	call	#divide_
+	add	objptr, #80
+	rdlong	muldiva_, objptr
+	sub	objptr, #80
+	call	#divide_
+	mov	arg01, muldivb_
+	add	objptr, #120
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0189
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##916
+	call	#_simple_adc1_c
+	mov	arg01, result1
+	sub	objptr, ##916
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0190
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##932
+	call	#_simple_adc1_c
+	mov	arg01, result1
+	sub	objptr, ##932
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0191
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##948
+	call	#_simple_adc1_c
+	mov	arg01, result1
+	sub	objptr, ##948
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0192
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##596
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##596
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0193
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##840
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##840
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0194
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##844
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##844
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0195
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #60
+	rdlong	arg01, objptr
+	add	objptr, #60
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0196
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #64
+	rdlong	arg01, objptr
+	add	objptr, #64
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0197
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##932
+	call	#_simple_adc1_mv
+	mov	arg01, result1
+	sub	objptr, ##932
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0198
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##664
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##664
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0199
+	call	#_jm_fullduplexserial_str
+	mov	local01, #0
+	add	objptr, ##648
+	rdlong	result1, objptr wz
+ if_ne	neg	local01, #1
+	mov	local05, #0
+	mov	local09, #0
+	sub	objptr, #36
+	rdlong	local11, objptr
+	add	objptr, #196
+	rdlong	result1, objptr
+	sub	objptr, ##928
+	mov	local10, result1
+	mov	local04, local11
+	sub	local04, local10
+	cmps	local04, #200 wcz
+ if_a	neg	local09, #1
+	cmp	local09, #0 wz
+ if_ne	neg	local05, #1
+	test	local01, local05 wz
+ if_e	jmp	#LR__0010
+	add	objptr, ##932
+	rdlong	result1, objptr
+	sub	objptr, #80
+	rdlong	local07, objptr
+	sub	result1, local07
+	sub	objptr, ##852
+	cmps	result1, #500 wcz
+ if_ae	jmp	#LR__0009
+	add	local02, #1
+	cmps	local02, #10 wcz
+ if_a	add	objptr, #84
+ if_a	wrlong	#0, objptr
+ if_a	sub	objptr, #84
+	jmp	#LR__0011
+LR__0009
+	mov	local02, #0
+	jmp	#LR__0011
+LR__0010
+	mov	local02, #0
+LR__0011
+	add	objptr, #44
+	wrbyte	#8, objptr
+	sub	objptr, #4
+	wrlong	##848, objptr
+	sub	objptr, #40
+LR__0012
+	add	objptr, #64
+	rdlong	local01, objptr wz
+	sub	objptr, #64
+ if_e	jmp	#LR__0014
+	getct	result1
+	mov	local01, result1
+	add	objptr, #68
+	rdlong	local05, objptr
+	sub	objptr, #68
+	sub	local01, local05
+	rdlong	local04, #20
+	shl	local04, #3
+	cmps	local01, local04 wcz
+ if_be	jmp	#LR__0013
+	add	objptr, #64
+	wrlong	#0, objptr
+	sub	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #60
+LR__0013
+LR__0014
+	add	objptr, #60
+	rdlong	local01, objptr wz
+	sub	objptr, #60
+ if_e	jmp	#LR__0016
+	add	objptr, #72
+	rdlong	local01, objptr
+	sub	objptr, #12
+	rdlong	local09, objptr
+	sub	objptr, #60
+	cmp	local01, local09 wz
+ if_e	jmp	#LR__0015
+	mov	arg01, ##@LR__0200
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+LR__0015
+	add	objptr, ##768
+	wrlong	#0, objptr
+	sub	objptr, #4
+	wrlong	#1, objptr
+	sub	objptr, ##764
+	jmp	#LR__0018
+LR__0016
+	add	objptr, #72
+	rdlong	local01, objptr
+	sub	objptr, #12
+	rdlong	local09, objptr
+	sub	objptr, #60
+	cmp	local01, local09 wz
+ if_e	jmp	#LR__0017
+	mov	arg01, ##@LR__0201
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+LR__0017
+	add	objptr, ##764
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#1, objptr
+	sub	objptr, ##768
+LR__0018
+	add	objptr, #60
+	rdlong	local01, objptr
+	add	objptr, #12
+	wrlong	local01, objptr
+	mov	arg01, #0
+	add	objptr, ##1292
+	call	#_Canbus_controller_readRxBuffer
+	sub	objptr, ##1364
+	mov	local12, result1
+	mov	local13, local12
+	cmp	local12, ##-1 wz
+ if_e	jmp	#LR__0008
+	cmp	local13, #468 wz
+ if_ne	jmp	#LR__0019
+	add	objptr, #60
+	wrlong	#0, objptr
+	add	objptr, ##1330
+	rdbyte	result1, objptr
+	sub	objptr, ##1390
+	cmp	result1, #160 wz
+ if_e	add	objptr, #60
+ if_e	wrlong	#1, objptr
+ if_e	sub	objptr, #60
+	mov	arg01, #1
+	add	objptr, ##1390
+	add	arg01, objptr
+	rdbyte	result1, arg01
+	qmul	result1, #79
+	getqx	local05
+	sub	objptr, ##1334
+	wrlong	local05, objptr
+	add	objptr, #8
+	wrlong	#1, objptr
+	getct	result1
+	add	objptr, #4
+	wrlong	result1, objptr
+	sub	objptr, #68
+LR__0019
+	add	objptr, #76
+	rdlong	local08, objptr wz
+	sub	objptr, #76
+ if_e	jmp	#LR__0008
+	add	objptr, #76
+	wrlong	#0, objptr
+	mov	arg01, local13
+	add	objptr, #44
+	call	#_jm_fullduplexserial_hex
+	mov	arg01, ##@LR__0202
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1244
+	call	#_Canbus_controller_rxRTR
+	sub	objptr, ##1364
+	cmp	result1, #0 wz
+ if_e	jmp	#LR__0020
+	mov	arg01, ##@LR__0203
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+	jmp	#LR__0022
+LR__0020
+	mov	local14, #0
+	add	objptr, ##1389
+	rdbyte	local15, objptr
+	sub	objptr, ##1389
+	sub	local15, #1
+	cmps	local15, #0 wcz
+ if_a	mov	local05, #1
+ if_be	neg	local05, #1
+	mov	local16, local05
+	add	local15, local05
+LR__0021
+	mov	arg01, local14
+	add	objptr, ##1390
+	add	arg01, objptr
+	rdbyte	result1, arg01
+	mov	arg01, result1
+	sub	objptr, ##1270
+	call	#_jm_fullduplexserial_hex
+	mov	local11, ##@LR__0204
+	mov	arg01, local11
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+	add	local14, local16
+	cmp	local14, local15 wz
+ if_ne	jmp	#LR__0021
+LR__0022
+	mov	arg01, ##@LR__0205
+	add	objptr, #120
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+	jmp	#LR__0008
+LR__0023
+	add	objptr, ##544
+	call	#_pcdb2105_lib2_stop
+	add	objptr, ##820
+	call	#_Canbus_controller_stop
+	drvh	#5
+	mov	arg01, ##@LR__0206
+	sub	objptr, ##1244
+	call	#_jm_fullduplexserial_str
+	sub	objptr, #120
+	mov	ptra, fp
+	call	#popregs_
+_day_ret
+	ret
+
+_drv8912_reva_start
+	mov	COUNT_, #1
+	call	#pushregs_
+	drvh	#21
+	drvl	#20
+	drvl	#19
+	mov	arg01, #1
+	call	#__system___waitms
+	drvh	#17
+	qmul	##1000, ##1000
+	getqx	muldivb_
+	rdlong	muldiva_, #20
+	call	#divide_
+	mov	local01, muldivb_
+	shr	local01, #2
+	sub	local01, #4
+	add	objptr, #12
+	wrlong	local01, objptr
+	sub	objptr, #12
+	mov	arg01, #1
+	call	#__system___waitms
+	mov	arg01, #26
+	mov	arg02, #64
+	call	#_drv8912_reva_inout
+	mov	ptra, fp
+	call	#popregs_
+_drv8912_reva_start_ret
+	ret
+
+_drv8912_reva_inout
+	mov	_var01, arg01
+	mov	_var02, arg02
+	mov	_var03, _var01
+	and	_var03, #255
+	setbyte	_var04, _var03, #3
+	mov	_var03, _var02
+	and	_var03, #255
+	setbyte	_var04, _var03, #2
+	rdlong	_var05, objptr
+	add	objptr, #4
+	rdlong	_var06, objptr
+	mov	_var07, _var06
+	add	objptr, #4
+	rdlong	_var03, objptr
+	mov	_var08, _var03
+	add	objptr, #4
+	rdlong	_var09, objptr
+	sub	objptr, #12
+	mov	_var10, _var09
+	mov	_var11, #0
+	loc	pa,	#(@LR__0025-@LR__0024)
+	call	#FCACHE_LOAD_
+LR__0024
+	org	0
+	drvl	#20
+	drvl	#19
+	drvl	#21
+	nop
+	rep	#10, #16
+	shl	_var04, #1 wc
+	drvc	#19
+	waitx	_var10
+	drvh	#20
+	waitx	_var10
+	waitx	_var10
+	testp	#18 wc
+	rcl	_var11, #1
+	drvl	#20
+	waitx	_var10
+	drvh	#21
+	drvl	#19
+LR__0025
+	orgh
+	mov	result1, _var11
+_drv8912_reva_inout_ret
+	ret
+
+_jm_fullduplexserial_start
+	mov	COUNT_, #15
+	call	#pushregs_
+	mov	local01, arg01
+	mov	local02, arg02
+	mov	local03, arg03
+	mov	local04, arg04
+	mov	local05, #0
+	call	#_jm_fullduplexserial_stop
+	cmp	local01, local02 wz
+ if_e	mov	result1, #0
+ if_e	jmp	#LR__0033
+	add	objptr, #4
+	wrlong	local01, objptr
+	add	objptr, #4
+	wrlong	local02, objptr
+	add	objptr, #32
+	mov	local06, objptr
+	sub	objptr, #28
+	wrlong	local06, objptr
+	add	objptr, #92
+	mov	local06, objptr
+	sub	objptr, #88
+	wrlong	local06, objptr
+	sub	objptr, #16
+	rdlong	muldiva_, #20
+	mov	muldivb_, local04
+	call	#divide_
+	qmul	muldivb_, #11
+	getqx	local07
+	add	objptr, #36
+	wrlong	local07, objptr
+	rdlong	arg01, #20
+	decod	local08, #16
+	mov	local09, local04
+	decod	arg02, #16
+	mov	arg03, local09
+	qmul	arg01, arg02
+	getqy	local10
+	getqx	local11
+	setq	local10
+	qdiv	local11, arg03
+	getqx	result1
+	mov	local12, result1
+	mov	local13, local12
+	and	local13, ##-1024
+	or	local13, #7
+	sub	objptr, #32
+	rdlong	local06, objptr
+	sub	objptr, #4
+	cmps	local06, #0 wcz
+ if_b	jmp	#LR__0026
+	mov	local14, #62
+	test	local03, #1 wz
+ if_ne	mov	local14, ##32830
+	add	objptr, #4
+	rdlong	arg01, objptr
+	sub	objptr, #4
+	mov	local08, local14
+	mov	local09, local13
+	mov	local12, #0
+	mov	arg02, local08
+	mov	arg03, local09
+	mov	arg04, #0
+	dirl	arg01
+	wrpin	arg02, arg01
+	wxpin	arg03, arg01
+	wypin	#0, arg01
+	dirh	arg01
+LR__0026
+	add	objptr, #8
+	rdlong	local07, objptr
+	sub	objptr, #8
+	cmps	local07, #0 wcz
+ if_b	jmp	#LR__0032
+	mov	local14, #124
+	mov	local06, local03
+	shr	local06, #1
+	and	local06, #3
+	sub	local06, #1
+	fle	local06, #3
+	mov	local15, local06
+	jmprel	local15
+LR__0027
+	jmp	#LR__0028
+	jmp	#LR__0029
+	jmp	#LR__0030
+	jmp	#LR__0031
+LR__0028
+	bith	local14, #14
+	jmp	#LR__0031
+LR__0029
+	bith	local14, #75
+	jmp	#LR__0031
+LR__0030
+	mov	local07, local14
+	or	local07, ##18176
+	mov	local14, local07
+LR__0031
+	add	objptr, #8
+	rdlong	arg01, objptr
+	sub	objptr, #8
+	dirl	arg01
+	wrpin	local14, arg01
+	wxpin	local13, arg01
+	wypin	#0, arg01
+	dirh	arg01
+LR__0032
+	add	objptr, #4
+	mov	arg03, objptr
+	sub	objptr, #4
+	mov	arg01, #16
+	setq	arg03
+	coginit	arg01, ptr__jm_fullduplexserial_dat__ wc
+ if_b	neg	arg01, #1
+	mov	result1, arg01
+	add	result1, #1
+	wrlong	result1, objptr
+LR__0033
+	mov	ptra, fp
+	call	#popregs_
+_jm_fullduplexserial_start_ret
+	ret
+
+_jm_fullduplexserial_stop
+	mov	COUNT_, #1
+	call	#pushregs_
+	rdlong	local01, objptr wz
+ if_e	jmp	#LR__0034
+	rdlong	arg01, objptr
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+	wrlong	#0, objptr
+LR__0034
+	add	objptr, #4
+	mov	arg01, objptr
+	sub	objptr, #4
+	neg	arg02, #1
+	loc	pa,	#(@LR__0037-@LR__0035)
+	call	#FCACHE_LOAD_
+LR__0035
+	rep	@LR__0038, #2
+LR__0036
+	wrlong	arg02, arg01
+	add	arg01, #4
+LR__0037
+LR__0038
+	add	objptr, #12
+	mov	arg01, objptr
+	sub	objptr, #12
+	mov	arg02, #0
+	loc	pa,	#(@LR__0041-@LR__0039)
+	call	#FCACHE_LOAD_
+LR__0039
+	rep	@LR__0042, #7
+LR__0040
+	wrlong	arg02, arg01
+	add	arg01, #4
+LR__0041
+LR__0042
+	mov	ptra, fp
+	call	#popregs_
+_jm_fullduplexserial_stop_ret
+	ret
+
+_jm_fullduplexserial_tx
+	loc	pa,	#(@LR__0044-@LR__0043)
+	call	#FCACHE_LOAD_
+LR__0043
+	add	objptr, #28
+	rdlong	_var01, objptr
+	add	objptr, #4
+	rdlong	_var02, objptr
+	sub	objptr, #32
+	sub	_var01, _var02
+	cmps	_var01, #0 wcz
+ if_b	add	_var01, #64
+	cmps	_var01, #63 wcz
+ if_ae	jmp	#LR__0043
+LR__0044
+	add	objptr, #28
+	rdlong	_var03, objptr
+	add	objptr, #76
+	add	_var03, objptr
+	wrbyte	arg01, _var03
+	sub	objptr, #76
+	rdlong	_var02, objptr
+	add	_var02, #1
+	wrlong	_var02, objptr
+	sub	objptr, #28
+	cmp	_var02, #64 wz
+ if_e	add	objptr, #28
+ if_e	wrlong	#0, objptr
+ if_e	sub	objptr, #28
+_jm_fullduplexserial_tx_ret
+	ret
+
+_jm_fullduplexserial_str
+	mov	COUNT_, #4
+	call	#pushregs_
+	mov	local01, arg01
+	mov	local02, #0
+	loc	pa,	#(@LR__0046-@LR__0045)
+	call	#FCACHE_LOAD_
+LR__0045
+	rdbyte	local03, arg01 wz
+ if_ne	add	local02, #1
+ if_ne	add	arg01, #1
+ if_ne	jmp	#LR__0045
+LR__0046
+	mov	result1, local02
+	mov	local04, result1 wz
+ if_e	jmp	#LR__0048
+LR__0047
+	rdbyte	arg01, local01
+	add	local01, #1
+	call	#_jm_fullduplexserial_tx
+	djnz	local04, #LR__0047
+LR__0048
+	mov	ptra, fp
+	call	#popregs_
+_jm_fullduplexserial_str_ret
+	ret
+
+_jm_fullduplexserial_dec
+	mov	arg02, #10
+	mov	arg03, #0
+	add	objptr, #248
+	call	#_jm_nstr_itoa
+	sub	objptr, #248
+	mov	arg01, result1
+	call	#_jm_fullduplexserial_str
+_jm_fullduplexserial_dec_ret
+	ret
+
+_jm_fullduplexserial_hex
+	mov	arg02, #16
+	mov	arg03, #0
+	add	objptr, #248
+	call	#_jm_nstr_itoa
+	sub	objptr, #248
+	mov	arg01, result1
+	call	#_jm_fullduplexserial_str
+_jm_fullduplexserial_hex_ret
+	ret
+
+_jm_nstr_itoa
+	mov	COUNT_, #12
+	call	#pushregs_
+	mov	local01, arg01
+	mov	local02, arg02
+	mov	local03, arg03
+	mov	local04, objptr
+	mov	local05, #0
+	mov	local06, #48
+	mov	arg01, local04
+	mov	arg02, #0
+	mov	arg03, #48
+	call	#__system____builtin_memset
+	mov	local07, objptr
+	mov	local08, local02
+	cmp	local08, #2 wz
+ if_e	jmp	#LR__0049
+	cmp	local08, #4 wz
+ if_e	jmp	#LR__0050
+	cmp	local08, #8 wz
+ if_e	jmp	#LR__0051
+	cmp	local08, #10 wz
+ if_e	jmp	#LR__0052
+	cmp	local08, #16 wz
+ if_e	jmp	#LR__0053
+	jmp	#LR__0054
+LR__0049
+	mov	local09, #0
+	fges	local09, local03
+	fles	local09, #32
+	mov	local03, local09
+	jmp	#LR__0055
+LR__0050
+	mov	local09, #0
+	fges	local09, local03
+	fles	local09, #16
+	mov	local03, local09
+	jmp	#LR__0055
+LR__0051
+	mov	local09, #0
+	fges	local09, local03
+	fles	local09, #11
+	mov	local03, local09
+	jmp	#LR__0055
+LR__0052
+	mov	local09, #0
+	fges	local09, local03
+	fles	local09, #10
+	mov	local03, local09
+	jmp	#LR__0055
+LR__0053
+	mov	local09, #0
+	fges	local09, local03
+	fles	local09, #8
+	mov	local03, local09
+	jmp	#LR__0055
+LR__0054
+	wrbyte	#0, local07
+	mov	result1, local07
+	jmp	#LR__0062
+LR__0055
+	cmp	local02, #10 wz
+ if_ne	jmp	#LR__0056
+	cmps	local01, #0 wcz
+ if_ae	jmp	#LR__0056
+	cmp	local01, ##-2147483648 wz
+ if_e	mov	local10, #2
+ if_e	bmask	local01, #30
+ if_e	jmp	#LR__0057
+	mov	local10, #1
+	neg	local01, local01
+	jmp	#LR__0057
+LR__0056
+	mov	local10, #0
+LR__0057
+	mov	local11, #0
+LR__0058
+	mov	muldiva_, local01
+	mov	muldivb_, local02
+	call	#unsdivide_
+	mov	local12, muldiva_
+	cmps	local12, #10 wcz
+ if_b	add	local12, #48
+ if_b	mov	local09, local12
+ if_ae	add	local12, #55
+ if_ae	mov	local09, local12
+	wrbyte	local09, local07
+	mov	muldiva_, local01
+	mov	muldivb_, local02
+	add	local07, #1
+	call	#unsdivide_
+	mov	local01, muldivb_
+	cmp	local03, #0 wz
+ if_e	jmp	#LR__0059
+	add	local11, #1
+	cmp	local11, local03 wz
+ if_e	jmp	#LR__0060
+	jmp	#LR__0058
+LR__0059
+	cmp	local01, #0 wz
+ if_ne	jmp	#LR__0058
+LR__0060
+	cmp	local10, #0 wz
+ if_e	jmp	#LR__0061
+	wrbyte	#45, local07
+	cmp	local10, #2 wz
+	add	local07, #1
+ if_e	wrbyte	#56, objptr
+LR__0061
+	wrbyte	#0, local07
+	mov	arg01, objptr
+	call	#_jm_nstr_revstr
+LR__0062
+	mov	ptra, fp
+	call	#popregs_
+_jm_nstr_itoa_ret
+	ret
+
+_jm_nstr_revstr
+	mov	COUNT_, #7
+	call	#pushregs_
+	mov	local01, arg01
+	mov	local02, arg01
+	mov	local03, #0
+	loc	pa,	#(@LR__0064-@LR__0063)
+	call	#FCACHE_LOAD_
+LR__0063
+	rdbyte	local04, arg01 wz
+ if_ne	add	local03, #1
+ if_ne	add	arg01, #1
+ if_ne	jmp	#LR__0063
+LR__0064
+	mov	local05, local01
+	add	local05, local03
+	sub	local05, #1
+	shr	local03, #1 wz
+ if_e	jmp	#LR__0069
+	loc	pa,	#(@LR__0067-@LR__0065)
+	call	#FCACHE_LOAD_
+LR__0065
+	rep	@LR__0068, local03
+LR__0066
+	rdbyte	local06, local05
+	rdbyte	local07, local01
+	wrbyte	local06, local01
+	wrbyte	local07, local05
+	add	local01, #1
+	sub	local05, #1
+LR__0067
+LR__0068
+LR__0069
+	mov	result1, local02
+	mov	ptra, fp
+	call	#popregs_
+_jm_nstr_revstr_ret
+	ret
+
+_pcdb2105_lib2_start
+	mov	COUNT_, #3
+	call	#pushregs_
+	add	objptr, #172
+	wrlong	##16000, objptr
+	add	objptr, #16
+	wrlong	##13800, objptr
+	sub	objptr, #4
+	wrlong	##5000, objptr
+	sub	objptr, #4
+	wrlong	##390000, objptr
+	sub	objptr, #4
+	wrlong	##1000, objptr
+	sub	objptr, #176
+	mov	local01, objptr
+	add	objptr, #4
+	mov	local02, objptr
+	wrlong	local01, local02
+	add	local02, #4
+	wrlong	ptr__pcdb2105_lib2_main_, local02
+	mov	arg03, objptr
+	sub	objptr, #4
+	mov	arg01, #30
+	setq	arg03
+	coginit	arg01, entryptr__ wc
+ if_b	neg	arg01, #1
+	mov	result1, arg01
+	mov	local03, result1
+	add	local03, #1
+	wrlong	local03, objptr
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_start_ret
+	ret
+
+_pcdb2105_lib2_stop
+	mov	COUNT_, #1
+	call	#pushregs_
+	add	objptr, #492
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	add	objptr, #16
+	call	#_simple_adc1_stop
+	sub	objptr, #404
+	call	#_vreg_revb_stop
+	sub	objptr, #264
+	rdlong	local01, objptr wz
+ if_e	jmp	#LR__0070
+	rdlong	arg01, objptr
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+LR__0070
+	wrlong	#0, objptr
+	dirl	#53
+	dirl	#56
+	dirl	#57
+	drvh	#1
+	drvl	#2
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_stop_ret
+	ret
+
+_pcdb2105_lib2_main
+	mov	COUNT_, #3
+	call	#pushregs_
+	add	objptr, #220
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #224
+	call	#_pcdb2105_lib2_setup
+	drvh	#1
+	drvh	#2
+	mov	arg01, #0
+	drvl	#0
+	add	objptr, #200
+	wrlong	#15, objptr
+	mov	local01, #0
+	add	objptr, #8
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #216
+LR__0071
+	call	#_pcdb2105_lib2_plc
+	add	objptr, #380
+	rdlong	result1, objptr
+	sub	objptr, #380
+	cmp	result1, local02 wz
+ if_e	jmp	#LR__0071
+	add	objptr, #380
+	rdlong	result1, objptr
+	sub	objptr, #380
+	mov	local02, result1
+	call	#_pcdb2105_lib2_mppt
+	call	#_pcdb2105_lib2_temperature_protection
+	cmp	local02, #1 wz
+ if_ne	jmp	#LR__0071
+	add	objptr, #396
+	rdlong	result1, objptr
+	sub	objptr, #396
+	mov	local01, result1
+	mov	muldiva_, local01
+	shl	muldiva_, #2
+	add	muldiva_, local01
+	shl	muldiva_, #4
+	mov	muldivb_, ##10000
+	call	#divide_
+	qmul	muldivb_, #100
+	getqx	local03
+	add	objptr, #172
+	wrlong	local03, objptr
+	sub	objptr, #172
+	jmp	#LR__0071
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_main_ret
+	ret
+
+_pcdb2105_lib2_plc
+	mov	COUNT_, #6
+	call	#pushregs_
+	add	objptr, ##684
+	call	#_plc_blocks_update
+	sub	objptr, #460
+	rdlong	local01, objptr wz
+	sub	objptr, #224
+ if_e	jmp	#LR__0073
+	add	objptr, #188
+	rdlong	arg01, objptr
+	add	objptr, #76
+	cmps	arg01, #0 wcz
+ if_b	jmp	#LR__0072
+	cmps	arg01, ##50000 wcz
+ if_be	add	objptr, #20
+ if_be	wrlong	arg01, objptr
+ if_be	sub	objptr, #20
+LR__0072
+	add	objptr, #16
+	wrlong	#1, objptr
+	sub	objptr, #280
+	jmp	#LR__0074
+LR__0073
+	add	objptr, #280
+	wrlong	#0, objptr
+	sub	objptr, #280
+LR__0074
+	add	objptr, ##652
+	call	#_simple_adc1_mv
+	mov	local02, result1
+	mov	local03, local02
+	shl	local03, #2
+	add	local03, local02
+	shl	local03, #1
+	sub	objptr, #388
+	call	#_vreg_revb_hvm_mv
+	sub	local03, result1
+	sub	objptr, #24
+	wrlong	local03, objptr
+	mov	local01, #0
+	mov	local02, local03
+	sub	objptr, #240
+	cmps	local02, ##-10000 wcz
+ if_be	jmp	#LR__0075
+	add	objptr, #240
+	rdlong	local04, objptr
+	sub	objptr, #240
+	cmps	local04, ##430000 wcz
+ if_b	neg	local01, #1
+LR__0075
+	add	objptr, #244
+	wrlong	local01, objptr
+	mov	arg01, local01
+	mov	arg02, #2
+	mov	arg03, ##2000000
+	add	objptr, #440
+	call	#_plc_blocks_ton
+	mov	local05, result1
+	sub	objptr, #436
+	wrlong	local05, objptr
+	rdlong	local01, objptr wz
+	sub	objptr, #248
+ if_e	jmp	#LR__0077
+	add	objptr, #216
+	rdlong	local01, objptr wz
+	sub	objptr, #216
+ if_ne	jmp	#LR__0076
+	add	objptr, #216
+	wrlong	#1, objptr
+	add	objptr, #184
+	rdlong	local06, objptr
+	sub	objptr, #96
+	wrlong	local06, objptr
+	sub	objptr, #304
+LR__0076
+	drvl	#56
+	drvh	#57
+	add	objptr, #208
+	wrlong	#1, objptr
+	sub	objptr, #208
+LR__0077
+	add	objptr, #248
+	rdlong	local01, objptr wz
+	sub	objptr, #248
+ if_e	jmp	#LR__0079
+	add	objptr, #220
+	rdlong	local01, objptr
+	sub	objptr, #220
+	cmp	local01, #1 wz
+ if_ne	jmp	#LR__0078
+	add	objptr, #292
+	wrlong	#1, objptr
+	sub	objptr, #112
+	rdlong	arg01, objptr
+	add	objptr, #84
+	call	#_vreg_revb_set_hv_mv
+	sub	objptr, #264
+	jmp	#LR__0080
+LR__0078
+	add	objptr, #292
+	wrlong	#0, objptr
+	sub	objptr, #28
+	mov	arg01, #0
+	call	#_vreg_revb_set_hv_mv
+	sub	objptr, #264
+	jmp	#LR__0080
+LR__0079
+	add	objptr, #292
+	wrlong	#0, objptr
+	sub	objptr, #28
+	mov	arg01, #0
+	call	#_vreg_revb_set_hv_mv
+	sub	objptr, #264
+LR__0080
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_plc_ret
+	ret
+
+_pcdb2105_lib2_temperature_protection
+	mov	COUNT_, #5
+	call	#pushregs_
+	add	objptr, #492
+	call	#_simple_adc1_c
+	mov	local01, result1
+	sub	objptr, #300
+	wrlong	local01, objptr
+	add	objptr, #316
+	call	#_simple_adc1_c
+	mov	local01, result1
+	sub	objptr, #316
+	rdlong	local02, objptr
+	sub	objptr, #192
+	cmps	local01, local02 wcz
+ if_be	jmp	#LR__0081
+	add	objptr, #508
+	call	#_simple_adc1_c
+	sub	objptr, #316
+	wrlong	result1, objptr
+	sub	objptr, #192
+LR__0081
+	add	objptr, ##524
+	call	#_simple_adc1_c
+	mov	local01, result1
+	sub	objptr, #332
+	rdlong	local02, objptr
+	sub	objptr, #192
+	cmps	local01, local02 wcz
+ if_be	jmp	#LR__0082
+	add	objptr, ##524
+	call	#_simple_adc1_c
+	sub	objptr, #332
+	wrlong	result1, objptr
+	sub	objptr, #192
+LR__0082
+	mov	local01, #95
+	add	objptr, #192
+	rdlong	local02, objptr
+	sub	local01, local02
+	add	objptr, #4
+	wrlong	local01, objptr
+	sub	objptr, #196
+	cmps	local01, #0 wcz
+ if_b	add	objptr, #196
+ if_b	wrlong	#0, objptr
+ if_b	sub	objptr, #196
+	add	objptr, #196
+	rdlong	local01, objptr
+	sub	objptr, #196
+	cmps	local01, #20 wcz
+ if_a	add	objptr, #196
+ if_a	wrlong	#20, objptr
+ if_a	sub	objptr, #196
+	add	objptr, #176
+	rdlong	local02, objptr
+	add	objptr, #20
+	rdlong	local03, objptr
+	sub	objptr, #196
+	qmul	local02, local03
+	getqx	muldiva_
+	mov	muldivb_, #20
+	call	#divide_
+	mov	arg01, muldivb_
+	add	objptr, #264
+	cmps	arg01, #0 wcz
+ if_b	jmp	#LR__0083
+	cmps	arg01, ##1200 wcz
+ if_be	add	objptr, #36
+ if_be	wrlong	arg01, objptr
+ if_be	sub	objptr, #36
+LR__0083
+	sub	objptr, #80
+	rdlong	local02, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #196
+	qmul	local02, local04
+	getqx	muldiva_
+	mov	muldivb_, #20
+	call	#divide_
+	add	objptr, #264
+	cmps	muldivb_, #0 wcz
+ if_b	jmp	#LR__0084
+	cmps	muldivb_, ##10000 wcz
+ if_be	add	objptr, #24
+ if_be	wrlong	muldivb_, objptr
+ if_be	sub	objptr, #24
+LR__0084
+	sub	objptr, #32
+	rdlong	local01, objptr
+	sub	objptr, #232
+	cmp	local01, #1 wz
+ if_ne	jmp	#LR__0085
+	add	objptr, #208
+	rdlong	local05, objptr
+	sub	objptr, #208
+	cmp	local05, #1 wz
+ if_e	jmp	#LR__0086
+LR__0085
+	add	objptr, #200
+	wrlong	#5, objptr
+	sub	objptr, #200
+	jmp	#LR__0091
+LR__0086
+	add	objptr, #196
+	rdlong	local01, objptr
+	sub	objptr, #196
+	cmp	local01, #20 wz
+ if_e	jmp	#LR__0087
+	add	objptr, #200
+	wrlong	#14, objptr
+	sub	objptr, #200
+	jmp	#LR__0090
+LR__0087
+	add	objptr, #204
+	rdlong	local01, objptr wz
+	sub	objptr, #204
+ if_e	jmp	#LR__0088
+	add	objptr, #200
+	wrlong	#1, objptr
+	sub	objptr, #200
+	jmp	#LR__0089
+LR__0088
+	add	objptr, #200
+	wrlong	#15, objptr
+	sub	objptr, #200
+LR__0089
+LR__0090
+LR__0091
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_temperature_protection_ret
+	ret
+
+_pcdb2105_lib2_mppt
+	mov	COUNT_, #6
+	call	#pushregs_
+	add	objptr, #392
+	rdlong	local01, objptr
+	sub	objptr, #256
+	wrlong	local01, objptr
+	add	objptr, #260
+	rdlong	result1, objptr
+	sub	objptr, #264
+	wrlong	result1, objptr
+	add	objptr, #4
+	rdlong	local02, objptr
+	sub	objptr, #4
+	rdlong	local03, objptr
+	sub	objptr, #132
+	qmul	local02, local03
+	getqx	muldiva_
+	mov	muldivb_, ##1000
+	call	#divide_
+	add	objptr, #140
+	wrlong	muldivb_, objptr
+	add	objptr, #20
+	rdlong	local04, objptr
+	sub	objptr, #4
+	rdlong	local05, objptr
+	sub	objptr, #156
+	mov	local03, local05
+	qmul	local04, local03
+	getqx	muldiva_
+	mov	muldivb_, ##1000
+	call	#divide_
+	mov	local06, muldivb_
+	add	objptr, #164
+	wrlong	local06, objptr
+	add	objptr, #40
+	wrlong	#0, objptr
+	add	objptr, #212
+	rdlong	result1, objptr
+	sub	objptr, #416
+	cmps	result1, ##6000 wcz
+ if_a	jmp	#LR__0092
+	add	objptr, #420
+	rdlong	result1, objptr
+	sub	objptr, #420
+	mov	local02, result1
+	cmps	local02, ##6000 wcz
+ if_be	jmp	#LR__0102
+LR__0092
+	add	objptr, #204
+	wrlong	#1, objptr
+	sub	objptr, #72
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #144
+	sub	local01, local04
+	abs	local01, local01
+	cmps	local01, #1 wcz
+ if_ae	jmp	#LR__0094
+	add	objptr, #136
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #148
+	sub	local01, local04
+	abs	local01, local01
+	cmps	local01, #2 wcz
+ if_be	jmp	#LR__0101
+	add	objptr, #136
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #148
+	cmps	local01, local04 wcz
+ if_be	jmp	#LR__0093
+	add	objptr, #172
+	rdlong	local01, objptr
+	add	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+	jmp	#LR__0101
+LR__0093
+	add	objptr, #172
+	rdlong	local01, objptr
+	sub	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+	jmp	#LR__0101
+LR__0094
+	add	objptr, #140
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #152
+	sub	local01, local04
+	abs	local01, local01
+	cmps	local01, #10 wcz
+ if_be	jmp	#LR__0100
+	add	objptr, #140
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #152
+	cmps	local01, local04 wcz
+ if_be	jmp	#LR__0096
+	add	objptr, #132
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #144
+	cmps	local01, local04 wcz
+ if_be	jmp	#LR__0095
+	add	objptr, #172
+	rdlong	local01, objptr
+	add	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+	jmp	#LR__0099
+LR__0095
+	add	objptr, #172
+	rdlong	local01, objptr
+	sub	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+	jmp	#LR__0099
+LR__0096
+	add	objptr, #132
+	rdlong	local01, objptr
+	add	objptr, #12
+	rdlong	local04, objptr
+	sub	objptr, #144
+	cmps	local01, local04 wcz
+ if_be	jmp	#LR__0097
+	add	objptr, #172
+	rdlong	local01, objptr
+	sub	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+	jmp	#LR__0098
+LR__0097
+	add	objptr, #172
+	rdlong	local01, objptr
+	add	local01, #100
+	wrlong	local01, objptr
+	sub	objptr, #172
+LR__0098
+LR__0099
+LR__0100
+LR__0101
+LR__0102
+	add	objptr, #172
+	rdlong	local01, objptr
+	sub	objptr, #172
+	cmps	local01, ##11000 wcz
+ if_b	add	objptr, #172
+ if_b	wrlong	##11000, objptr
+ if_b	sub	objptr, #172
+	add	objptr, #172
+	rdlong	local01, objptr
+	sub	objptr, #172
+	cmps	local01, ##50000 wcz
+ if_a	add	objptr, #172
+ if_a	wrlong	##50000, objptr
+ if_a	sub	objptr, #172
+	add	objptr, #172
+	rdlong	arg01, objptr
+	add	objptr, #92
+	call	#_vreg_revb_set_vmppt
+	sub	objptr, #128
+	rdlong	local01, objptr
+	add	objptr, #12
+	wrlong	local01, objptr
+	sub	objptr, #16
+	rdlong	local01, objptr
+	add	objptr, #12
+	wrlong	local01, objptr
+	sub	objptr, #4
+	rdlong	local01, objptr
+	add	objptr, #12
+	wrlong	local01, objptr
+	sub	objptr, #152
+	mov	ptra, fp
+	call	#popregs_
+_pcdb2105_lib2_mppt_ret
+	ret
+
+_pcdb2105_lib2_setup
+	add	objptr, #264
+	call	#_vreg_revb_start
+	mov	arg01, #38
+	add	objptr, #228
+	mov	arg02, ##3300
+	mov	arg03, #0
+	call	#_simple_adc1_start_drv
+	mov	arg01, #52
+	add	objptr, #16
+	mov	arg02, ##3300
+	mov	arg03, #0
+	call	#_simple_adc1_start_drv
+	mov	arg01, #39
+	add	objptr, #16
+	mov	arg02, ##3300
+	mov	arg03, #0
+	call	#_simple_adc1_start_drv
+	mov	arg01, #51
+	mov	arg02, ##53940
+	mov	arg03, ##-53600
+	add	objptr, #128
+	call	#_simple_adc1_start_drv
+	mov	arg01, #49
+	mov	arg02, ##53940
+	mov	arg03, ##-53600
+	add	objptr, #16
+	call	#_simple_adc1_start_drv
+	getct	result1
+	add	objptr, #20
+	wrlong	result1, objptr
+	sub	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, ##684
+_pcdb2105_lib2_setup_ret
+	ret
+
+_vreg_revb_start
+	mov	COUNT_, #1
+	call	#pushregs_
+	call	#_vreg_revb_stop
+	add	objptr, #188
+	wrlong	#0, objptr
+	sub	objptr, #140
+	mov	local01, objptr
+	sub	objptr, #44
+	wrlong	local01, objptr
+	add	objptr, #112
+	mov	local01, objptr
+	sub	objptr, #108
+	wrlong	local01, objptr
+	add	objptr, #4
+	wrlong	##11000, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	##12000, objptr
+	add	objptr, #4
+	wrlong	##2000, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	##39000, objptr
+	add	objptr, #4
+	wrlong	##1200, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #168
+	call	#_fb_revc_Start
+	mov	local01, result1
+	add	ptr__vreg_revb_dat__, ##1348
+	wrlong	local01, ptr__vreg_revb_dat__
+	sub	ptr__vreg_revb_dat__, ##1348
+	sub	objptr, #20
+	call	#_buck_reve_Start
+	add	ptr__vreg_revb_dat__, ##1396
+	wrlong	result1, ptr__vreg_revb_dat__
+	sub	ptr__vreg_revb_dat__, ##1396
+	sub	objptr, #188
+	mov	arg03, objptr
+	sub	objptr, #4
+	mov	arg01, #30
+	setq	arg03
+	coginit	arg01, ptr__vreg_revb_dat__ wc
+ if_b	neg	arg01, #1
+	mov	result1, arg01
+	add	result1, #1
+	wrlong	result1, objptr
+	mov	ptra, fp
+	call	#popregs_
+_vreg_revb_start_ret
+	ret
+
+_vreg_revb_hv_mv
+	add	objptr, #140
+	rdlong	_var01, objptr
+	sub	objptr, #140
+	mov	result1, _var01
+	shl	result1, #2
+	add	result1, _var01
+	shl	result1, #1
+_vreg_revb_hv_mv_ret
+	ret
+
+_vreg_revb_hvm_mv
+	add	objptr, #148
+	rdlong	_var01, objptr
+	sub	objptr, #148
+	mov	result1, _var01
+	shl	result1, #2
+	add	result1, _var01
+	shl	result1, #1
+_vreg_revb_hvm_mv_ret
+	ret
+
+_vreg_revb_set_vmppt
+	mov	_var01, arg01
+	cmps	_var01, ##11000 wcz
+ if_b	jmp	#LR__0103
+	cmps	_var01, ##50000 wcz
+ if_a	jmp	#LR__0103
+	add	objptr, #12
+	wrlong	_var01, objptr
+	sub	objptr, #12
+	jmp	#LR__0104
+LR__0103
+	add	objptr, #12
+	wrlong	##12000, objptr
+	sub	objptr, #12
+LR__0104
+_vreg_revb_set_vmppt_ret
+	ret
+
+_vreg_revb_set_hv_mv
+	mov	_var01, arg01
+	cmps	_var01, #0 wcz
+ if_b	jmp	#LR__0105
+	cmps	_var01, ##420000 wcz
+ if_a	jmp	#LR__0105
+	mov	muldiva_, _var01
+	mov	muldivb_, #10
+	call	#divide_
+	mov	_var02, muldivb_
+	add	objptr, #32
+	wrlong	_var02, objptr
+	sub	objptr, #32
+LR__0105
+_vreg_revb_set_hv_mv_ret
+	ret
+
+_vreg_revb_stop
+	mov	COUNT_, #2
+	call	#pushregs_
+	add	objptr, #192
+	call	#_buck_reve_stop
+	add	objptr, #20
+	rdlong	local01, objptr wz
+ if_e	jmp	#LR__0106
+	rdlong	arg01, objptr
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+LR__0106
+	wrlong	#0, objptr
+	sub	objptr, #212
+	rdlong	local02, objptr wz
+ if_e	jmp	#LR__0107
+	rdlong	arg01, objptr
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+LR__0107
+	wrlong	#0, objptr
+	mov	ptra, fp
+	call	#popregs_
+_vreg_revb_stop_ret
+	ret
+
+_buck_reve_stop
+	mov	COUNT_, #1
+	call	#pushregs_
+	add	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #4
+	rdlong	local01, objptr wz
+ if_e	jmp	#LR__0108
+	rdlong	arg01, objptr
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+LR__0108
+	wrlong	#0, objptr
+	mov	ptra, fp
+	call	#popregs_
+_buck_reve_stop_ret
+	ret
+
+_buck_reve_Start
+	call	#_buck_reve_stop
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#14, objptr
+	add	objptr, #4
+	wrlong	#500, objptr
+	add	objptr, #4
+	wrlong	#10, objptr
+	add	ptr__buck_reve_dat__, #440
+	wrlong	#1, ptr__buck_reve_dat__
+	sub	ptr__buck_reve_dat__, #440
+	sub	objptr, #12
+	mov	result1, objptr
+	mov	arg03, objptr
+	sub	objptr, #4
+	mov	arg01, #30
+	setq	arg03
+	coginit	arg01, ptr__buck_reve_dat__ wc
+ if_b	neg	arg01, #1
+	add	arg01, #1
+	wrlong	arg01, objptr
+_buck_reve_Start_ret
+	ret
+
+_fb_revc_Start
+	add	objptr, #4
+	wrlong	#0, objptr
+	add	objptr, #4
+	wrlong	#500, objptr
+	add	objptr, #4
+	wrlong	#10, objptr
+	add	ptr__fb_revc_dat__, #132
+	wrlong	#0, ptr__fb_revc_dat__
+	sub	ptr__fb_revc_dat__, #132
+	sub	objptr, #8
+	mov	arg03, objptr
+	sub	objptr, #4
+	mov	arg01, #30
+	setq	arg03
+	coginit	arg01, ptr__fb_revc_dat__ wc
+ if_b	neg	arg01, #1
+	add	arg01, #1
+	wrlong	arg01, objptr
+	add	objptr, #4
+	mov	result1, objptr
+	sub	objptr, #4
+_fb_revc_Start_ret
+	ret
+
+_simple_adc1_mv
+	mov	COUNT_, #3
+	call	#pushregs_
+	add	objptr, #12
+	rdlong	arg01, objptr
+	sub	objptr, #12
+	mov	result1, #0
+	rdpin	result1, arg01
+	rdlong	local01, objptr
+	sub	result1, local01
+	add	objptr, #8
+	rdlong	local02, objptr
+	qmul	local02, result1
+	getqx	result1
+	shr	result1, #10
+	sub	objptr, #4
+	rdlong	local03, objptr
+	sub	objptr, #4
+	add	result1, local03
+	mov	ptra, fp
+	call	#popregs_
+_simple_adc1_mv_ret
+	ret
+
+_simple_adc1_c
+	mov	COUNT_, #1
+	call	#pushregs_
+	call	#_simple_adc1_mv
+	mov	local01, result1
+	sub	local01, ##871
+	qmul	local01, #100
+	getqx	muldiva_
+	mov	muldivb_, ##-565
+	call	#divide_
+	add	muldivb_, #30
+	mov	result1, muldivb_
+	mov	ptra, fp
+	call	#popregs_
+_simple_adc1_c_ret
+	ret
+
+_simple_adc1_start_drv
+	mov	COUNT_, #1
+	call	#pushregs_
+	mov	muldiva_, arg02
+	add	objptr, #12
+	wrlong	arg01, objptr
+	sub	objptr, #8
+	wrlong	arg03, objptr
+	add	objptr, #8
+	rdlong	arg01, objptr
+	wrpin	##1146928, arg01
+	wxpin	#13, arg01
+	dirh	arg01
+	drvl	arg01
+	wrpin	##1146992, arg01
+	waitx	##40960
+	sub	objptr, #12
+	mov	result1, #0
+	rdpin	result1, arg01
+	wrlong	result1, objptr
+	add	objptr, #12
+	rdlong	arg01, objptr
+	drvh	arg01
+	waitx	##40960
+	mov	result1, #0
+	rdpin	result1, arg01
+	mov	muldivb_, result1
+	rdlong	arg01, objptr
+	sub	objptr, #12
+	wrpin	##1146928, arg01
+	sub	muldiva_, arg03
+	shl	muldiva_, #10
+	rdlong	local01, objptr
+	sub	muldivb_, local01
+	call	#divide_
+	add	objptr, #8
+	wrlong	muldivb_, objptr
+	sub	objptr, #8
+	waitx	##40960
+	mov	ptra, fp
+	call	#popregs_
+_simple_adc1_start_drv_ret
+	ret
+
+_simple_adc1_stop
+	add	objptr, #12
+	rdlong	arg01, objptr
+	dirl	arg01
+	sub	objptr, #12
+	wrpin	#0, arg01
+_simple_adc1_stop_ret
+	ret
+
+_plc_blocks_update
+	mov	COUNT_, #3
+	call	#pushregs_
+	getct	result1
+	mov	local01, result1
+	mov	local02, local01
+	add	objptr, #4
+	rdlong	local03, objptr
+	sub	local02, local03
+	wrlong	local01, objptr
+	sub	objptr, #4
+	rdlong	muldiva_, #20
+	mov	muldivb_, ##1000000
+	call	#divide_
+	mov	muldiva_, local02
+	call	#divide_
+	wrlong	muldivb_, objptr
+	mov	ptra, fp
+	call	#popregs_
+_plc_blocks_update_ret
+	ret
+
+_plc_blocks_ton
+	mov	_var01, arg01
+	mov	_var02, arg02
+	mov	_var03, arg03
+	mov	_var04, #0
+	cmp	_var01, #1 wz
+ if_e	jmp	#LR__0109
+	cmp	_var01, ##-1 wz
+ if_ne	jmp	#LR__0110
+LR__0109
+	mov	_var05, _var02
+	shl	_var05, #2
+	add	objptr, #8
+	add	_var05, objptr
+	rdlong	_var06, _var05
+	sub	objptr, #8
+	rdlong	_var07, objptr
+	add	_var06, _var07
+	mov	_var08, _var02
+	shl	_var08, #2
+	add	objptr, #8
+	add	_var08, objptr
+	wrlong	_var06, _var08
+	mov	_var06, _var02
+	shl	_var06, #2
+	add	_var06, objptr
+	rdlong	_var09, _var06
+	cmps	_var09, _var03 wcz
+	sub	objptr, #8
+ if_be	jmp	#LR__0111
+	shl	_var02, #2
+	add	objptr, #8
+	add	_var02, objptr
+	wrlong	_var03, _var02
+	mov	_var04, #1
+	sub	objptr, #8
+	jmp	#LR__0111
+LR__0110
+	shl	_var02, #2
+	add	objptr, #8
+	mov	_var05, objptr
+	add	_var02, objptr
+	wrlong	#0, _var02
+	sub	objptr, #8
+LR__0111
+	mov	result1, _var04
+_plc_blocks_ton_ret
+	ret
+
+_Canbus_controller_start
+	mov	COUNT_, #14
+	call	#pushregs_
+	mov	local01, arg01
+	mov	local02, arg02
+	mov	local03, arg03
+	mov	local04, arg04
+	mov	local05, #0
+	add	ptr__Canbus_controller_dat__, ##976
+	wrlong	local01, ptr__Canbus_controller_dat__
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	local02, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##980
+	rdlong	muldiva_, #20
+	mov	muldivb_, local03
+	call	#divide_
+	add	ptr__Canbus_controller_dat__, ##1016
+	wrlong	muldivb_, ptr__Canbus_controller_dat__
+	abs	local06, muldivb_ wc
+	shr	local06, #1
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1020
+	mov	arg01, objptr
+	mov	arg02, #0
+	loc	pa,	#(@LR__0114-@LR__0112)
+	call	#FCACHE_LOAD_
+LR__0112
+	rep	@LR__0115, #2
+LR__0113
+	wrlong	arg02, arg01
+	add	arg01, #4
+LR__0114
+LR__0115
+	add	objptr, #8
+	mov	arg01, objptr
+	sub	objptr, #8
+	neg	arg02, #1
+	mov	arg03, #13
+	call	#__system____builtin_memset
+	add	objptr, #34
+	mov	local06, objptr
+	mov	local07, local06
+	neg	local08, #1
+	mov	local09, #4
+	mov	arg01, local07
+	neg	arg02, #1
+	mov	arg03, #4
+	sub	objptr, #34
+	call	#__system____builtin_memset
+	mov	local10, local03
+	cmps	local10, ##10000 wcz
+ if_b	jmp	#LR__0116
+	cmps	local10, ##125000 wcz
+ if_be	jmp	#LR__0117
+LR__0116
+	cmp	local10, ##250000 wz
+ if_e	jmp	#LR__0118
+	cmp	local10, ##500000 wz
+ if_e	jmp	#LR__0122
+	cmp	local10, ##1000000 wz
+ if_e	jmp	#LR__0126
+	jmp	#LR__0137
+LR__0117
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local07, ptr__Canbus_controller_dat__
+	abs	local06, local07 wc
+	shr	local06, #1
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0137
+LR__0118
+	rdlong	local11, #20
+	cmps	local11, ##80000000 wcz
+ if_b	jmp	#LR__0119
+	cmps	local11, ##159999999 wcz
+ if_be	jmp	#LR__0120
+LR__0119
+	cmps	local11, ##160000000 wcz
+ if_b	jmp	#LR__0137
+	cmps	local11, ##2147483647 wcz
+ if_be	jmp	#LR__0121
+	jmp	#LR__0137
+LR__0120
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	muldiva_, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1016
+	mov	muldivb_, #3
+	call	#divide_
+	add	ptr__Canbus_controller_dat__, ##1024
+	wrlong	muldivb_, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0137
+LR__0121
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local07, ptr__Canbus_controller_dat__
+	abs	local06, local07 wc
+	shr	local06, #1
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0137
+LR__0122
+	rdlong	local12, #20
+	cmps	local12, ##80000000 wcz
+ if_b	jmp	#LR__0123
+	cmps	local12, ##179999999 wcz
+ if_be	jmp	#LR__0124
+LR__0123
+	cmps	local12, ##180000000 wcz
+ if_b	jmp	#LR__0137
+	cmps	local12, ##2147483647 wcz
+ if_be	jmp	#LR__0125
+	jmp	#LR__0137
+LR__0124
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	muldiva_, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1016
+	mov	muldivb_, #3
+	call	#divide_
+	add	ptr__Canbus_controller_dat__, ##1024
+	wrlong	muldivb_, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0137
+LR__0125
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local07, ptr__Canbus_controller_dat__
+	abs	local06, local07 wc
+	shr	local06, #1
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0137
+LR__0126
+	rdlong	local13, #20
+	cmps	local13, ##80000000 wcz
+ if_b	jmp	#LR__0127
+	cmps	local13, ##99999999 wcz
+ if_be	jmp	#LR__0131
+LR__0127
+	cmps	local13, ##100000000 wcz
+ if_b	jmp	#LR__0128
+	cmps	local13, ##119999999 wcz
+ if_be	jmp	#LR__0132
+LR__0128
+	cmps	local13, ##120000000 wcz
+ if_b	jmp	#LR__0129
+	cmps	local13, ##159999999 wcz
+ if_be	jmp	#LR__0133
+LR__0129
+	cmps	local13, ##160000000 wcz
+ if_b	jmp	#LR__0130
+	cmps	local13, ##319999999 wcz
+ if_be	jmp	#LR__0134
+LR__0130
+	cmps	local13, ##320000000 wcz
+ if_b	jmp	#LR__0136
+	cmps	local13, ##2147483647 wcz
+ if_be	jmp	#LR__0135
+	jmp	#LR__0136
+LR__0131
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local08, ptr__Canbus_controller_dat__
+	mov	local07, local08
+	abs	local06, local07 wc
+	shr	local06, #3
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0136
+LR__0132
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local07, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1016
+	mov	muldiva_, local07
+	mov	muldivb_, #5
+	call	#divide_
+	mov	local06, muldivb_
+	add	ptr__Canbus_controller_dat__, ##1024
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0136
+LR__0133
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local08, ptr__Canbus_controller_dat__
+	mov	local07, local08
+	abs	local06, local07 wc
+	shr	local06, #2
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0136
+LR__0134
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local07, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1016
+	mov	muldiva_, local07
+	mov	muldivb_, #3
+	call	#divide_
+	mov	local06, muldivb_
+	add	ptr__Canbus_controller_dat__, ##1024
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+	jmp	#LR__0136
+LR__0135
+	add	ptr__Canbus_controller_dat__, ##1016
+	rdlong	local08, ptr__Canbus_controller_dat__
+	mov	local07, local08
+	abs	local06, local07 wc
+	shr	local06, #1
+ if_b	neg	local06, local06
+	add	ptr__Canbus_controller_dat__, #8
+	wrlong	local06, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1024
+LR__0136
+LR__0137
+	mov	arg01, local04
+	decod	local14, arg01
+	add	objptr, #51
+	wrbyte	local14, objptr
+	sub	objptr, #17
+	add	ptr__Canbus_controller_dat__, ##984
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	ptr__Canbus_controller_dat__, #4
+	sub	objptr, #34
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #8
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #39
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #1
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #1
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #1
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	add	objptr, #1
+	add	ptr__Canbus_controller_dat__, #4
+	wrlong	objptr, ptr__Canbus_controller_dat__
+	sub	ptr__Canbus_controller_dat__, ##1012
+	sub	objptr, #51
+	call	#_Canbus_controller_stop
+	mov	arg01, #16
+	setq	#0
+	coginit	arg01, ptr__Canbus_controller_dat__ wc
+ if_b	neg	arg01, #1
+	add	arg01, #1 wz
+	add	objptr, #52
+	wrbyte	arg01, objptr
+	sub	objptr, #52
+ if_e	jmp	#LR__0138
+	add	objptr, #21
+	mov	result1, objptr
+	sub	objptr, #21
+	jmp	#LR__0139
+LR__0138
+	mov	result1, #0
+LR__0139
+	mov	ptra, fp
+	call	#popregs_
+_Canbus_controller_start_ret
+	ret
+
+_Canbus_controller_stop
+	mov	COUNT_, #1
+	call	#pushregs_
+	add	objptr, #52
+	rdbyte	local01, objptr wz
+	sub	objptr, #52
+ if_e	jmp	#LR__0140
+	add	objptr, #52
+	rdbyte	arg01, objptr
+	wrbyte	#0, objptr
+	sub	objptr, #52
+	sub	arg01, #1
+	cogstop	arg01
+	mov	result1, #0
+LR__0140
+	mov	ptra, fp
+	call	#popregs_
+_Canbus_controller_stop_ret
+	ret
+
+_Canbus_controller_readRxBuffer
+	mov	COUNT_, #2
+	call	#pushregs_
+	mov	local01, arg01
+	cmps	local01, #1 wcz
+ if_ae	jmp	#LR__0142
+	add	objptr, #21
+	mov	arg01, objptr
+	qmul	local01, #13
+	getqx	arg02
+	sub	objptr, #13
+	add	arg02, objptr
+	mov	arg03, #13
+	sub	objptr, #8
+	call	#__system____builtin_memmove
+	add	objptr, #21
+	rdlong	local02, objptr
+	cmps	local02, ##-1 wcz
+	sub	objptr, #21
+ if_be	jmp	#LR__0141
+	qmul	local01, #13
+	getqx	arg01
+	add	objptr, #8
+	add	arg01, objptr
+	neg	arg02, #1
+	mov	arg03, #13
+	sub	objptr, #8
+	call	#__system____builtin_memset
+	add	objptr, #21
+	rdlong	result1, objptr
+	bitl	result1, #29
+	bitl	result1, #30
+	sub	objptr, #21
+	jmp	#LR__0143
+LR__0141
+	add	objptr, #21
+	rdlong	result1, objptr
+	sub	objptr, #21
+	jmp	#LR__0143
+LR__0142
+	neg	result1, #1
+LR__0143
+	mov	ptra, fp
+	call	#popregs_
+_Canbus_controller_readRxBuffer_ret
+	ret
+
+_Canbus_controller_rxRTR
+	mov	_var01, #0
+	add	objptr, #21
+	rdlong	_var02, objptr
+	testbn	_var02, #29 wz
+	sub	objptr, #21
+ if_ne	neg	_var01, #1
+	and	_var01, #1
+	mov	result1, _var01
+_Canbus_controller_rxRTR_ret
+	ret
+
+_led_adc_mv
+	add	objptr, #8
+	rdlong	_var01, objptr
+	sub	objptr, #4
+	rdlong	_var02, objptr
+	sub	_var01, _var02
+	add	objptr, #12
+	rdlong	_var03, objptr
+	qmul	_var03, _var01
+	getqx	result1
+	shr	result1, #10
+	sub	objptr, #4
+	rdlong	_var04, objptr
+	sub	objptr, #12
+	add	result1, _var04
+_led_adc_mv_ret
+	ret
+
+_led_adc_update
+	mov	COUNT_, #4
+	call	#pushregs_
+	getct	result1
+	mov	local01, result1
+	add	objptr, #36
+	rdlong	local02, objptr
+	sub	local01, local02
+	wrlong	result1, objptr
+	sub	objptr, #4
+	rdlong	local03, objptr
+	add	local03, local01
+	wrlong	local03, objptr
+	sub	objptr, #4
+	rdlong	local03, objptr
+	sub	objptr, #28
+	cmp	local03, #1 wz
+ if_ne	jmp	#LR__0145
+	add	objptr, #32
+	rdlong	local03, objptr
+	sub	objptr, #32
+	cmps	local03, ##40960 wcz
+ if_be	jmp	#LR__0147
+	add	objptr, #20
+	rdlong	arg01, objptr
+	mov	result1, #0
+	rdpin	result1, arg01
+	mov	local04, result1
+	sub	objptr, #12
+	wrlong	local04, objptr
+	add	objptr, #24
+	wrlong	#0, objptr
+	sub	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #4
+	rdlong	local03, objptr wz
+	sub	objptr, #24
+ if_e	jmp	#LR__0144
+	add	objptr, #20
+	rdlong	arg01, objptr
+	drvh	arg01
+	sub	objptr, #20
+	wrpin	##1146992, arg01
+	jmp	#LR__0147
+LR__0144
+	add	objptr, #20
+	rdlong	arg01, objptr
+	drvl	arg01
+	sub	objptr, #20
+	wrpin	##1146992, arg01
+	jmp	#LR__0147
+LR__0145
+	add	objptr, #32
+	rdlong	local03, objptr
+	sub	objptr, #32
+	cmps	local03, ##163840 wcz
+ if_be	jmp	#LR__0146
+	add	objptr, #32
+	wrlong	#0, objptr
+	sub	objptr, #4
+	wrlong	#1, objptr
+	sub	objptr, #8
+	rdlong	arg01, objptr
+	wrpin	##1146928, arg01
+	sub	objptr, #20
+	drvl	arg01
+LR__0146
+LR__0147
+	mov	ptra, fp
+	call	#popregs_
+_led_adc_update_ret
+	ret
+
+_led_adc_start_drv
+	mov	COUNT_, #1
+	call	#pushregs_
+	mov	muldiva_, arg02
+	add	objptr, #24
+	wrlong	#0, objptr
+	getct	result1
+	add	objptr, #12
+	wrlong	result1, objptr
+	sub	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #12
+	wrlong	arg01, objptr
+	sub	objptr, #8
+	wrlong	arg03, objptr
+	add	objptr, #8
+	rdlong	arg01, objptr
+	wrpin	##1146928, arg01
+	wxpin	#13, arg01
+	dirh	arg01
+	drvl	arg01
+	wrpin	##1146992, arg01
+	waitx	##40960
+	mov	local01, #0
+	rdpin	local01, arg01
+	sub	objptr, #16
+	wrlong	local01, objptr
+	add	objptr, #16
+	rdlong	arg01, objptr
+	drvh	arg01
+	waitx	##40960
+	mov	result1, #0
+	rdpin	result1, arg01
+	mov	muldivb_, result1
+	rdlong	arg01, objptr
+	wrpin	##1146928, arg01
+	sub	muldiva_, arg03
+	shl	muldiva_, #10
+	sub	objptr, #16
+	rdlong	local01, objptr
+	sub	objptr, #4
+	sub	muldivb_, local01
+	call	#divide_
+	add	objptr, #16
+	wrlong	muldivb_, objptr
+	waitx	##40960
+	add	objptr, #4
+	rdlong	arg01, objptr
+	mov	result1, #0
+	rdpin	result1, arg01
+	sub	objptr, #12
+	wrlong	result1, objptr
+	sub	objptr, #8
+	mov	ptra, fp
+	call	#popregs_
+_led_adc_start_drv_ret
+	ret
+hubexit
+	jmp	#cogexit
+
+__system____builtin_memset
+	mov	_var01, arg01
+	mov	_var02, arg02
+	shl	_var02, #8
+	or	_var02, arg02
+	mov	_var03, _var02
+	shl	_var03, #16
+	or	_var03, _var02
+	loc	pa,	#(@LR__0149-@LR__0148)
+	call	#FCACHE_LOAD_
+LR__0148
+	cmps	arg03, #3 wcz
+ if_be	jmp	#LR__0150
+	wrlong	_var03, arg01
+	add	arg01, #4
+	sub	arg03, #4
+	jmp	#LR__0148
+LR__0149
+LR__0150
+	cmp	arg03, #0 wz
+ if_e	jmp	#LR__0155
+	loc	pa,	#(@LR__0153-@LR__0151)
+	call	#FCACHE_LOAD_
+LR__0151
+	rep	@LR__0154, arg03
+LR__0152
+	wrbyte	arg02, arg01
+	add	arg01, #1
+LR__0153
+LR__0154
+LR__0155
+	mov	result1, _var01
+__system____builtin_memset_ret
+	ret
+
+__system____builtin_memmove
+	mov	_var01, arg01
+	cmps	arg01, arg02 wcz
+ if_ae	jmp	#LR__0163
+	loc	pa,	#(@LR__0157-@LR__0156)
+	call	#FCACHE_LOAD_
+LR__0156
+	cmps	arg03, #3 wcz
+ if_be	jmp	#LR__0158
+	rdlong	_var02, arg02
+	wrlong	_var02, arg01
+	add	arg01, #4
+	add	arg02, #4
+	sub	arg03, #4
+	jmp	#LR__0156
+LR__0157
+LR__0158
+	mov	_var03, arg03 wz
+ if_e	jmp	#LR__0169
+	loc	pa,	#(@LR__0161-@LR__0159)
+	call	#FCACHE_LOAD_
+LR__0159
+	rep	@LR__0162, _var03
+LR__0160
+	rdbyte	_var02, arg02
+	wrbyte	_var02, arg01
+	add	arg01, #1
+	add	arg02, #1
+LR__0161
+LR__0162
+	jmp	#LR__0169
+LR__0163
+	add	arg01, arg03
+	add	arg02, arg03
+	mov	_var04, arg03 wz
+ if_e	jmp	#LR__0168
+	loc	pa,	#(@LR__0166-@LR__0164)
+	call	#FCACHE_LOAD_
+LR__0164
+	rep	@LR__0167, _var04
+LR__0165
+	sub	arg01, #1
+	sub	arg02, #1
+	rdbyte	_var02, arg02
+	wrbyte	_var02, arg01
+LR__0166
+LR__0167
+LR__0168
+LR__0169
+	mov	result1, _var01
+__system____builtin_memmove_ret
+	ret
+
+__system___waitms
+	mov	COUNT_, #3
+	call	#pushregs_
+	mov	local01, arg01
+	rdlong	local02, #20
+	loc	pa,	#(@LR__0171-@LR__0170)
+	call	#FCACHE_LOAD_
+LR__0170
+	cmps	local01, ##1000 wcz
+ if_a	waitx	local02
+ if_a	sub	local01, ##1000
+ if_a	jmp	#LR__0170
+LR__0171
+	add	ptr___system__dat__, #12
+	rdlong	local03, ptr___system__dat__ wz
+	sub	ptr___system__dat__, #12
+ if_ne	jmp	#LR__0172
+	mov	muldiva_, local02
+	mov	muldivb_, ##1000
+	call	#unsdivide_
+	mov	local03, muldivb_
+	add	ptr___system__dat__, #12
+	wrlong	muldivb_, ptr___system__dat__
+	sub	ptr___system__dat__, #12
+LR__0172
+	cmps	local01, #0 wcz
+ if_a	qmul	local01, local03
+ if_a	getqx	arg01
+ if_a	waitx	arg01
+	mov	ptra, fp
+	call	#popregs_
+__system___waitms_ret
+	ret
+
+LR__0173
+	byte	"12v check OK, "
+	byte	0
+LR__0174
+	byte	"mV"
+	byte	13
+	byte	10
+	byte	0
+LR__0175
+	byte	"reverse polarity error, 12v input, "
+	byte	0
+LR__0176
+	byte	"mV"
+	byte	13
+	byte	10
+	byte	0
+LR__0177
+	byte	"Night,"
+	byte	0
+LR__0178
+	byte	","
+	byte	0
+LR__0179
+	byte	","
+	byte	13
+	byte	10
+	byte	0
+LR__0180
+	byte	"DAY"
+	byte	13
+	byte	10
+	byte	0
+LR__0181
+	byte	","
+	byte	0
+LR__0182
+	byte	","
+	byte	0
+LR__0183
+	byte	","
+	byte	0
+LR__0184
+	byte	","
+	byte	0
+LR__0185
+	byte	","
+	byte	0
+LR__0186
+	byte	","
+	byte	0
+LR__0187
+	byte	","
+	byte	0
+LR__0188
+	byte	"mW,"
+	byte	0
+LR__0189
+	byte	"%,"
+	byte	0
+LR__0190
+	byte	"C,"
+	byte	0
+LR__0191
+	byte	"C,"
+	byte	0
+LR__0192
+	byte	"C,"
+	byte	0
+LR__0193
+	byte	","
+	byte	0
+LR__0194
+	byte	","
+	byte	0
+LR__0195
+	byte	","
+	byte	0
+LR__0196
+	byte	","
+	byte	0
+LR__0197
+	byte	","
+	byte	0
+LR__0198
+	byte	","
+	byte	0
+LR__0199
+	byte	13
+	byte	10
+	byte	0
+LR__0200
+	byte	"ON"
+	byte	13
+	byte	10
+	byte	0
+LR__0201
+	byte	"OFF"
+	byte	13
+	byte	10
+	byte	0
+LR__0202
+	byte	" "
+	byte	0
+LR__0203
+	byte	"Remote Transmission Request"
+	byte	0
+LR__0204
+	byte	" "
+	byte	0
+LR__0205
+	byte	13
+	byte	10
+	byte	0
+LR__0206
+	byte	"NIGHT"
+	byte	13
+	byte	10
+	byte	0
+	alignl
+_jm_fullduplexserial_dat_
+	byte	$28, $06, $64, $fd, $00, $3b, $04, $fb, $1f, $3a, $14, $f4, $0c, $00, $b0, $3d
+	byte	$1f, $3c, $14, $f4, $2c, $00, $b0, $3d, $ec, $ff, $9f, $fd, $40, $3a, $70, $fd
+	byte	$2d, $00, $64, $3d, $1d, $46, $88, $fa, $18, $46, $44, $f0, $1f, $42, $00, $f6
+	byte	$04, $45, $04, $fb, $22, $42, $00, $f1, $21, $46, $40, $fc, $3f, $44, $04, $f7
+	byte	$04, $45, $64, $0c, $1e, $42, $98, $fa, $2d, $00, $64, $cd, $06, $43, $04, $fb
+	byte	$07, $45, $04, $fb, $22, $42, $08, $f2, $2d, $00, $64, $ad, $20, $42, $00, $f6
+	byte	$22, $42, $00, $f1, $21, $46, $c0, $fa, $1e, $46, $20, $fc, $3f, $44, $04, $f7
+	byte	$07, $45, $64, $0c
+'-' rxd             res       1                                     ' receive pin
+'-' txd             res       1                                     ' transmit pin
+'-' p_rxbuf         res       1                                     ' pointer to rxbuf
+'-' p_txbuf         res       1                                     ' pointer to txbuf
+'-' t1              res       1                                     ' work vars
+'-' t2              res       1
+'-' t3              res       1
+'-'                 fit       496
+	alignl
+_vreg_revb_dat_
+	byte	$61, $1f, $07, $fb, $61, $21, $07, $fb, $2d, $e2, $06, $fc, $2f, $e2, $06, $fc
+	byte	$2b, $e2, $06, $fc, $dc, $e2, $06, $fc, $2d, $ea, $16, $fc, $2d, $ec, $26, $fc
+	byte	$2f, $ea, $16, $fc, $2f, $ec, $26, $fc, $2b, $ea, $16, $fc, $2b, $ec, $26, $fc
+	byte	$dc, $ea, $16, $fc, $dc, $ec, $26, $fc, $41, $56, $66, $fd, $41, $b8, $65, $fd
+	byte	$00, $4c, $07, $f6, $00, $38, $07, $f6, $af, $31, $07, $f6, $96, $31, $83, $f1
+	byte	$09, $30, $27, $f4, $44, $e8, $07, $f6, $2d, $24, $07, $f6, $40, $24, $47, $f5
+	byte	$20, $24, $63, $fd, $01, $9c, $06, $f6, $00, $3a, $07, $f6, $00, $3c, $07, $f6
+	byte	$00, $3e, $07, $f6, $00, $40, $07, $f6, $00, $42, $07, $f6, $00, $44, $07, $f6
+	byte	$00, $46, $07, $f6, $00, $48, $07, $f6, $00, $4a, $07, $f6, $25, $08, $64, $fd
+	byte	$08, $9c, $0e, $f2, $40, $00, $90, $ad, $c7, $9d, $96, $f9, $00, $28, $03, $f6
+	byte	$bf, $9d, $96, $f9, $00, $2a, $03, $f6, $95, $29, $83, $f1, $7e, $9d, $96, $f9
+	byte	$00, $2a, $03, $f6, $86, $9d, $96, $f9, $00, $2a, $83, $f1, $0a, $2a, $67, $f0
+	byte	$94, $2b, $13, $fd, $0e, $1c, $07, $f6, $ff, $1d, $6f, $fb, $18, $28, $63, $fd
+	byte	$cf, $9d, $8e, $f9, $94, $01, $00, $f6, $a7, $29, $03, $f6, $00, $28, $47, $f3
+	byte	$01, $28, $c7, $f0, $01, $00, $00, $ff, $40, $29, $07, $fa, $aa, $2b, $03, $f6
+	byte	$00, $2a, $47, $f3, $01, $2a, $c7, $f0, $95, $29, $13, $fd, $0e, $1c, $07, $f6
+	byte	$ff, $1d, $6f, $fb, $18, $b4, $62, $fd, $07, $9c, $06, $f7, $80, $ff, $9f, $fd
+	byte	$2b, $03, $0c, $fc, $dc, $02, $0c, $fc, $2d, $24, $8f, $fa, $bd, $25, $83, $f1
+	byte	$92, $7b, $03, $f1, $70, $25, $03, $f5, $05, $24, $47, $f0, $92, $6b, $03, $f6
+	byte	$2f, $24, $8f, $fa, $be, $25, $83, $f1, $92, $7d, $03, $f1, $70, $25, $03, $f5
+	byte	$05, $24, $47, $f0, $92, $6d, $03, $f6, $1c, $24, $8f, $fa, $b7, $25, $83, $f1
+	byte	$92, $6f, $03, $f1, $70, $25, $03, $f5, $05, $24, $47, $f0, $92, $5f, $03, $f6
+	byte	$1f, $24, $8f, $fa, $ba, $25, $83, $f1, $92, $75, $03, $f1, $70, $25, $03, $f5
+	byte	$05, $24, $47, $f0, $92, $65, $03, $f6, $2b, $24, $8f, $fa, $bb, $25, $83, $f1
+	byte	$92, $77, $03, $f1, $70, $25, $03, $f5, $05, $24, $47, $f0, $92, $67, $03, $f6
+	byte	$1e, $24, $8f, $fa, $b9, $25, $83, $f1, $92, $73, $03, $f1, $70, $25, $03, $f5
+	byte	$05, $24, $47, $f0, $92, $63, $03, $f6, $1d, $24, $8f, $fa, $b8, $25, $83, $f1
+	byte	$92, $71, $03, $f1, $70, $25, $03, $f5, $05, $24, $47, $f0, $92, $61, $03, $f6
+	byte	$b2, $55, $03, $f6, $c2, $55, $83, $f1, $d2, $55, $13, $fa, $0a, $54, $c7, $f0
+	byte	$89, $55, $03, $f1, $af, $4f, $03, $f6, $bf, $4f, $83, $f1, $cf, $4f, $13, $fa
+	byte	$0a, $4e, $c7, $f0, $86, $4f, $03, $f1, $b0, $51, $03, $f6, $c0, $51, $83, $f1
+	byte	$d0, $51, $13, $fa, $0a, $50, $c7, $f0, $87, $51, $03, $f1, $b3, $57, $03, $f6
+	byte	$c3, $57, $83, $f1, $d3, $57, $13, $fa, $0a, $56, $c7, $f0, $8a, $57, $03, $f1
+	byte	$b1, $53, $03, $f6, $c1, $53, $83, $f1, $d1, $53, $13, $fa, $0a, $52, $c7, $f0
+	byte	$88, $53, $03, $f1, $b5, $5b, $03, $f6, $c5, $5b, $83, $f1, $d5, $5b, $13, $fa
+	byte	$0a, $5a, $c7, $f0, $8c, $5b, $03, $f1, $b6, $5d, $03, $f6, $c6, $5d, $83, $f1
+	byte	$d6, $5d, $13, $fa, $0a, $5c, $c7, $f0, $8d, $5d, $03, $f1, $ad, $59, $03, $f6
+	byte	$ae, $59, $83, $f1, $01, $1c, $07, $f6, $f4, $af, $0e, $f2, $18, $00, $90, $5d
+	byte	$58, $56, $66, $fd, $58, $b8, $65, $fd, $2d, $e8, $06, $fc, $2f, $e8, $06, $fc
+	byte	$2b, $e8, $06, $fc, $dc, $e8, $06, $fc, $90, $af, $0e, $f2, $28, $00, $90, $5d
+	byte	$af, $7f, $03, $f6, $b0, $81, $03, $f6, $b1, $83, $03, $f6, $b2, $85, $03, $f6
+	byte	$b3, $87, $03, $f6, $b4, $89, $03, $f6, $b5, $8b, $03, $f6, $b6, $8d, $03, $f6
+	byte	$59, $56, $66, $fd, $59, $b8, $65, $fd, $2c, $af, $0e, $f2, $38, $00, $90, $5d
+	byte	$af, $8f, $03, $f6, $b0, $91, $03, $f6, $b1, $93, $03, $f6, $b2, $95, $03, $f6
+	byte	$b3, $97, $03, $f6, $b4, $99, $03, $f6, $b5, $9b, $03, $f6, $b6, $9d, $03, $f6
+	byte	$2d, $e2, $06, $fc, $2f, $e2, $06, $fc, $2b, $e2, $06, $fc, $dc, $e2, $06, $fc
+	byte	$58, $56, $66, $fd, $58, $b8, $65, $fd, $28, $0c, $64, $fd, $00, $c7, $06, $fb
+	byte	$aa, $a9, $02, $f6, $63, $a9, $82, $f1, $02, $a8, $c6, $f0, $01, $dc, $0e, $f2
+	byte	$a7, $d5, $02, $56, $00, $d4, $46, $f3, $6a, $bd, $02, $f6, $a7, $bd, $92, $f1
+	byte	$02, $bc, $c6, $f0, $66, $bf, $02, $f6, $a8, $bf, $82, $f1, $02, $be, $c6, $f0
+	byte	$61, $d9, $02, $f6, $5e, $c3, $02, $f6, $5f, $c3, $62, $f3, $54, $c3, $72, $f3
+	byte	$01, $4a, $07, $c1, $61, $b7, $02, $f6, $61, $db, $02, $f1, $6c, $db, $92, $f1
+	byte	$40, $06, $00, $ff, $00, $da, $66, $f3, $c0, $f9, $7f, $ff, $00, $da, $46, $f3
+	byte	$01, $ae, $f6, $f2, $d8, $01, $90, $cd, $c8, $52, $5f, $f2, $59, $34, $64, $1d
+	byte	$00, $52, $5f, $f2, $58, $34, $64, $cd, $41, $14, $64, $fd, $61, $00, $00, $ff
+	byte	$50, $55, $5f, $f2, $01, $b0, $06, $16, $00, $de, $06, $16, $fa, $ff, $7f, $ff
+	byte	$48, $50, $5f, $f2, $02, $b0, $06, $c6, $00, $de, $06, $c6, $1c, $00, $00, $ff
+	byte	$a4, $50, $5f, $f2, $03, $b0, $06, $16, $00, $de, $06, $16, $65, $d5, $1a, $f2
+	byte	$0a, $d4, $06, $c1, $0a, $d4, $86, $11, $01, $dc, $0e, $f2, $5a, $c1, $02, $56
+	byte	$0c, $c0, $66, $50, $00, $b6, $06, $56, $5b, $c1, $02, $f1, $00, $00, $00, $ff
+	byte	$00, $c0, $46, $f3, $80, $19, $00, $ff, $00, $c0, $66, $f3, $09, $b6, $c6, $f0
+	byte	$60, $25, $03, $f6, $0c, $24, $c7, $f0, $92, $b7, $02, $f1, $6d, $25, $03, $f6
+	byte	$0b, $24, $c7, $f0, $92, $b7, $82, $f1, $75, $00, $00, $ff, $60, $de, $16, $f2
+	byte	$01, $de, $06, $c1, $01, $c8, $0e, $f2, $00, $dc, $06, $f6, $01, $dc, $06, $26
+	byte	$00, $b6, $46, $f3, $01, $00, $00, $ff, $20, $b7, $66, $f3, $01, $dc, $0e, $f2
+	byte	$00, $b6, $06, $56, $58, $4b, $63, $56, $aa, $b9, $02, $f6, $00, $b8, $46, $f3
+	byte	$01, $b8, $46, $f0, $05, $00, $00, $ff, $27, $b9, $06, $fa, $14, $b8, $46, $f0
+	byte	$28, $02, $64, $fd, $5d, $b7, $62, $fc, $68, $ad, $1a, $f2, $02, $ac, $06, $c1
+	byte	$02, $ac, $86, $11, $56, $a5, $02, $f6, $ac, $a5, $82, $f1, $02, $a4, $c6, $f0
+	byte	$69, $a7, $02, $f6, $ab, $a7, $82, $f1, $52, $a1, $02, $f6, $53, $a1, $62, $f3
+	byte	$32, $a8, $86, $f1, $54, $a1, $72, $f3, $01, $4c, $07, $c1, $50, $ab, $02, $f1
+	byte	$00, $aa, $46, $f3, $80, $19, $00, $ff, $00, $aa, $66, $f3, $55, $25, $03, $f6
+	byte	$0b, $24, $c7, $f0, $06, $a0, $c6, $f0, $92, $a1, $02, $f1, $01, $ce, $0e, $f2
+	byte	$00, $a0, $06, $56, $00, $4c, $07, $56, $00, $a0, $46, $f3, $03, $00, $00, $ff
+	byte	$40, $a0, $66, $f3, $51, $a1, $62, $fc, $a7, $3b, $03, $f1, $a8, $3d, $03, $f1
+	byte	$a9, $3f, $03, $f1, $aa, $41, $03, $f1, $ab, $43, $03, $f1, $ac, $45, $03, $f1
+	byte	$ad, $47, $03, $f1, $ae, $49, $03, $f1, $01, $9e, $06, $f1, $40, $00, $00, $ff
+	byte	$00, $9e, $16, $f2, $58, $00, $90, $cd, $00, $9e, $06, $f6, $01, $38, $07, $f1
+	byte	$0f, $3a, $c7, $f0, $0f, $3c, $c7, $f0, $0f, $3e, $c7, $f0, $0f, $40, $c7, $f0
+	byte	$0f, $42, $c7, $f0, $0f, $44, $c7, $f0, $0f, $46, $c7, $f0, $0f, $48, $c7, $f0
+	byte	$28, $14, $64, $fd, $90, $39, $63, $fc, $00, $3a, $07, $f6, $00, $3c, $07, $f6
+	byte	$00, $3e, $07, $f6, $00, $40, $07, $f6, $00, $42, $07, $f6, $00, $44, $07, $f6
+	byte	$00, $46, $07, $f6, $00, $48, $07, $f6, $00, $4a, $07, $f6, $00, $4c, $07, $f6
+	byte	$44, $e8, $07, $f6, $f5, $ff, $3b, $fb, $00, $00, $00, $00, $00, $00, $00, $00
+	byte	$00[28]
+	byte	$08, $02, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	byte	$00, $00, $00, $00, $26, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+	byte	$00[12]
+	byte	$40, $1f, $00, $00, $20, $4e, $00, $00, $00, $00, $00, $00, $e0, $2e, $00, $00
+	byte	$d0, $07, $00, $00, $00, $00, $00, $00, $28, $23, $00, $00, $e8, $03, $00, $00
+	byte	$00[24]
+	byte	$ff, $ff, $ff, $07, $30, $80, $11, $00, $30, $80, $10, $00, $30, $00, $10, $00
+	byte	$70, $80, $11, $00, $18, $00, $00, $00, $40, $03, $00, $00, $30, $80, $11, $00
+	byte	$00, $80, $16, $00, $30, $80, $11, $00, $30, $00, $11, $00, $30, $80, $10, $00
+	byte	$30, $80, $11, $00, $01, $00, $00, $00, $eb, $6e, $01, $00, $30, $43, $00, $00
+	byte	$30, $43, $00, $00, $b8, $82, $01, $00, $68, $10, $00, $00, $ac, $35, $00, $00
+	byte	$b4, $d2, $00, $00, $b4, $d2, $00, $00, $f3, $fe, $ff, $ff, $d0, $bc, $ff, $ff
+	byte	$d0, $bc, $ff, $ff, $7c, $e3, $ff, $ff, $98, $ef, $ff, $ff, $90, $1a, $00, $00
+	byte	$a0, $2e, $ff, $ff, $a0, $2e, $ff, $ff
+'-' cordic_delay_count res  1
+'-' measurement_ptr 	res	1
+'-' average_ptr 		res	1
+'-' pins		res	1	'initially set by Spin2 code to select the pins
+'-' x		res	1
+'-' y		res	1
+'-' mx		res	1
+'-' my		res	1
+'-' pin_base	res	1
+'-' pin_count	res	1
+'-' level_base	res	1
+'-' history res 2 
+'-' sampleshift	res 1
+'-' average_counter res     1
+'-' averages        res     9
+'-' measurement_counter res 1
+'-' measurements    res     8
+'-' samples		res	8	'raw samples, available via REG[samples][{0..7}]
+'-' diffa           res     8
+'-' gio_levels      res     8
+'-' vio_levels      res     8
+'-' cal_gain	res	8
+'-' 		fit
+	alignl
+_buck_reve_dat_
+	byte	$58, $4a, $64, $fd, $58, $46, $64, $fd, $58, $48, $64, $fd, $58, $44, $64, $fd
+	byte	$58, $42, $64, $fd, $58, $40, $64, $fd, $29, $e8, $04, $fc, $1a, $d8, $60, $fd
+	byte	$72, $d8, $60, $fa, $24, $22, $60, $fd, $72, $d8, $60, $fa, $24, $22, $60, $fd
+	byte	$03, $dc, $04, $f5, $28, $dc, $60, $fd, $00, $e1, $04, $fb, $71, $e8, $c8, $f8
+	byte	$29, $e8, $04, $fc, $0c, $e0, $14, $f3, $72, $de, $00, $f6, $70, $de, $80, $f1
+	byte	$6f, $d8, $60, $fa, $24, $22, $60, $fd, $76, $ea, $00, $f6, $58, $40, $64, $fd
+	byte	$1f, $14, $64, $fd, $59, $42, $64, $3d, $8c, $00, $90, $fd, $40, $52, $6c, $fd
+	byte	$84, $00, $90, $5d, $40, $52, $6c, $fd, $78, $00, $90, $5d, $40, $52, $6c, $fd
+	byte	$6c, $00, $90, $5d, $40, $52, $6c, $fd, $60, $00, $90, $5d, $40, $52, $6c, $fd
+	byte	$54, $00, $90, $5d, $40, $52, $6c, $fd, $48, $00, $90, $5d, $40, $52, $6c, $fd
+	byte	$3c, $00, $90, $5d, $40, $52, $6c, $fd, $30, $00, $90, $5d, $40, $52, $6c, $fd
+	byte	$24, $00, $90, $5d, $40, $52, $6c, $fd, $18, $00, $90, $5d, $40, $52, $6c, $fd
+	byte	$0c, $00, $90, $5d, $40, $52, $6c, $fd, $00, $00, $90, $5d, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $59, $42, $64, $3d, $70, $d8, $60, $fa
+	byte	$24, $22, $60, $fd, $58, $42, $64, $fd, $1f, $14, $64, $fd, $59, $40, $64, $3d
+	byte	$94, $00, $90, $fd, $40, $52, $6c, $fd, $8c, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$80, $00, $90, $ad, $40, $52, $6c, $fd, $74, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$68, $00, $90, $ad, $40, $52, $6c, $fd, $5c, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$50, $00, $90, $ad, $40, $52, $6c, $fd, $44, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$38, $00, $90, $ad, $40, $52, $6c, $fd, $2c, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$20, $00, $90, $ad, $40, $52, $6c, $fd, $14, $00, $90, $ad, $40, $52, $6c, $fd
+	byte	$08, $00, $90, $ad, $30, $00, $90, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd, $1f, $04, $64, $fd
+	byte	$1f, $04, $64, $fd, $1f, $04, $64, $fd, $59, $40, $64, $3d, $84, $fe, $9f, $fd
+	byte	$00[8]
+	byte	$01, $00, $00, $00, $00, $00, $00, $00, $64, $00, $00, $00, $26, $00, $00, $00
+	byte	$40, $03, $00, $00, $1e, $00, $00, $00, $00, $0f, $18, $00, $00, $00, $00, $00
+	byte	$0a, $00, $00, $00
+'-' fit
+	alignl
+_fb_revc_dat_
+	byte	$58, $4a, $64, $fd, $58, $46, $64, $fd, $58, $48, $64, $fd, $58, $44, $64, $fd
+	byte	$58, $42, $64, $fd, $58, $40, $64, $fd, $1a, $3e, $60, $fd, $28, $3e, $60, $fa
+	byte	$24, $22, $60, $fd, $28, $3e, $60, $fa, $24, $22, $60, $fd, $03, $42, $04, $f5
+	byte	$00, $4f, $04, $fb, $0a, $4e, $14, $f3, $28, $44, $00, $f6, $27, $44, $80, $f1
+	byte	$22, $3e, $60, $fa, $24, $22, $60, $fd, $25, $fa, $03, $36, $26, $fa, $03, $c6
+	byte	$27, $3e, $60, $fa, $24, $22, $60, $fd, $00, $fa, $07, $f6, $22, $3e, $60, $fa
+	byte	$24, $22, $60, $fd, $23, $fa, $03, $36, $24, $fa, $03, $c6, $27, $3e, $60, $fa
+	byte	$24, $22, $60, $fd, $00, $fa, $07, $f6, $b4, $ff, $9f, $fd, $00, $00, $00, $00
+	byte	$00[12]
+	byte	$24, $00, $00, $00, $04, $00, $00, $00, $18, $00, $00, $00, $10, $00, $00, $00
+	byte	$64, $00, $00, $00, $80, $06, $00, $00, $1e, $00, $00, $00
+'-' fit
+	alignl
+_Canbus_controller_dat_
+	byte	$59, $ea, $61, $fd, $fd, $2e, $c2, $fa, $02, $2e, $16, $f4, $f5, $e8, $01, $c6
+	byte	$00, $34, $06, $f6, $00, $32, $06, $f6, $00, $30, $06, $f6, $80, $29, $06, $f6
+	byte	$f4, $28, $42, $f5, $20, $28, $62, $fd, $00, $2c, $06, $f6, $00, $26, $06, $f6
+	byte	$01, $08, $66, $f6, $87, $a2, $bc, $f9, $ff, $30, $0e, $f2, $ff, $32, $0e, $52
+	byte	$1c, $00, $90, $ad, $fe, $02, $02, $f6, $0a, $02, $06, $fa, $1a, $28, $62, $fd
+	byte	$01, $29, $62, $fa, $fd, $29, $cc, $fb, $fe, $23, $cc, $fb, $38, $00, $90, $fd
+	byte	$02, $28, $66, $f6, $f6, $28, $62, $fc, $fe, $02, $02, $f6, $02, $00, $00, $ff
+	byte	$80, $03, $06, $fa, $1a, $28, $62, $fd, $01, $29, $62, $fa, $29, $28, $cc, $fb
+	byte	$fe, $23, $cc, $fb, $01, $28, $66, $f6, $f6, $28, $62, $fc, $00, $34, $06, $f6
+	byte	$00, $32, $06, $f6, $00, $30, $06, $f6, $fa, $34, $42, $fc, $fb, $30, $42, $fc
+	byte	$fc, $32, $42, $fc, $f6, $f0, $03, $f6, $00, $04, $06, $f6, $01, $10, $06, $f6
+	byte	$64, $78, $bc, $f9, $1b, $28, $cc, $fb, $f6, $28, $02, $fb, $fd, $29, $a6, $fb
+	byte	$00, $2c, $26, $f4, $1a, $02, $62, $fd, $00, $02, $66, $fa, $24, $22, $60, $fd
+	byte	$01, $2c, $16, $f4, $00, $08, $2e, $c4, $5c, $ea, $61, $cd, $14, $00, $90, $cd
+	byte	$1f, $04, $0e, $f4, $5c, $ea, $61, $fd, $01, $04, $66, $f0, $01, $10, $6e, $fb
+	byte	$00, $00, $a0, $fd, $ff, $02, $62, $fa, $24, $22, $60, $fd, $ff, $02, $62, $fa
+	byte	$40, $e8, $71, $fd, $00, $2c, $06, $64, $01, $32, $06, $61, $ff, $02, $62, $6a
+	byte	$24, $00, $90, $fd, $00, $08, $16, $f4, $10, $00, $90, $3d, $04, $02, $cc, $fb
+	byte	$fe, $09, $cc, $fb, $1a, $02, $62, $fd, $00, $03, $62, $fa, $24, $22, $60, $fd
+	byte	$40, $e8, $71, $fd, $fe, $02, $62, $fa, $01, $08, $a6, $f0, $01, $2c, $0e, $f4
+	byte	$f3, $26, $d2, $59, $00, $00, $80, $5d, $03, $08, $d6, $f7, $18, $00, $90, $3d
+	byte	$1f, $08, $0e, $f5, $1f, $08, $0e, $52, $01, $2c, $86, $f4, $00, $2c, $16, $f4
+	byte	$68, $ff, $9f, $cd, $ac, $ff, $9f, $fd, $01, $34, $06, $f1, $ff, $34, $26, $f3
+	byte	$80, $34, $16, $f2, $01, $2e, $0e, $f4, $ac, $fe, $9f, $bd, $58, $ea, $61, $fd
+	byte	$06, $02, $dc, $fc, $1f, $fc, $61, $fd, $59, $ea, $61, $fd, $98, $fe, $9f, $fd
+	byte	$00, $05, $06, $fb, $1e, $04, $16, $f4, $15, $04, $66, $30, $03, $04, $66, $c0
+	byte	$0b, $10, $06, $f6, $73, $78, $bc, $39, $6c, $78, $bc, $c9, $2d, $00, $64, $fd
+	byte	$01, $04, $66, $f6, $02, $10, $06, $f6, $6f, $78, $bc, $09, $00, $05, $06, $fb
+	byte	$0e, $04, $66, $f0, $12, $10, $06, $f6, $73, $78, $bc, $09, $61, $05, $06, $fb
+	byte	$02, $04, $66, $f0, $01, $10, $06, $f6, $77, $78, $bc, $09, $00, $04, $06, $f6
+	byte	$02, $10, $06, $f6, $7a, $78, $bc, $09, $61, $05, $c6, $fa, $02, $0f, $02, $f6
+	byte	$1c, $04, $66, $f0, $04, $10, $06, $f6, $7f, $78, $bc, $09, $03, $0e, $76, $fb
+	byte	$61, $05, $c6, $fa, $18, $04, $66, $f0, $08, $10, $06, $06, $0f, $10, $06, $f6
+	byte	$85, $78, $bc, $09, $01, $04, $66, $f6, $01, $10, $06, $06, $89, $a2, $bc, $f9
+	byte	$2c, $ff, $9f, $fd, $8c, $a2, $bc, $f9, $00, $12, $06, $f6, $0b, $0c, $06, $f6
+	byte	$01, $12, $a6, $f0, $c6, $0d, $6e, $fb, $90, $a2, $bc, $f9, $10, $ff, $9f, $fd
+	byte	$02, $2c, $46, $f4, $93, $a2, $bc, $f9, $04, $ff, $9f, $fd, $03, $2c, $46, $f4
+	byte	$97, $a2, $bc, $c9, $a2, $a2, $bc, $39, $f4, $fe, $9f, $fd, $99, $a2, $bc, $f9
+	byte	$12, $0c, $06, $f6, $01, $12, $a6, $f0, $b9, $0d, $6e, $fb, $9d, $a2, $bc, $f9
+	byte	$dc, $fe, $9f, $fd, $02, $2c, $46, $f4, $a0, $a2, $bc, $f9, $d0, $fe, $9f, $fd
+	byte	$a2, $a2, $bc, $f9, $c8, $fe, $9f, $fd, $a4, $a2, $bc, $f9, $c0, $fe, $9f, $fd
+	byte	$a7, $a2, $bc, $f9, $00, $14, $06, $f6, $04, $0c, $06, $f6, $01, $14, $a6, $f0
+	byte	$ab, $0d, $6e, $fb, $0d, $14, $96, $fb, $ac, $a2, $bc, $f9, $a0, $fe, $9f, $fd
+	byte	$b0, $a2, $bc, $f9, $0a, $0b, $02, $f6, $08, $0c, $06, $f6, $0b, $67, $b5, $f9
+	byte	$01, $28, $a6, $f0, $a2, $0d, $6e, $fb, $08, $0c, $06, $f6, $14, $01, $00, $f6
+	byte	$01, $00, $00, $ff, $00, $66, $05, $f1, $9d, $0b, $6e, $fb, $bb, $a2, $bc, $f9
+	byte	$13, $05, $02, $f6, $69, $04, $62, $fd, $64, $fe, $9f, $fd, $bd, $a2, $bc, $f9
+	byte	$0f, $0c, $06, $f6, $96, $0d, $6e, $fb, $9b, $27, $9e, $fb, $c1, $a2, $bc, $f9
+	byte	$4c, $fe, $9f, $fd, $00, $2c, $16, $f4, $38, $00, $90, $3d, $00, $2c, $06, $f4
+	byte	$1f, $fc, $61, $fd, $40, $e8, $71, $fd, $02, $2e, $0e, $f4, $18, $00, $90, $4d
+	byte	$ff, $ff, $ff, $ff, $f6, $fe, $6b, $fc, $34, $00, $90, $ad, $01, $32, $e6, $f2
+	byte	$01, $30, $e6, $f2, $f0, $fc, $9f, $fd, $01, $30, $06, $f1, $fb, $30, $42, $fc
+	byte	$e4, $fc, $9f, $fd, $fd, $2e, $c2, $fa, $01, $2e, $16, $f4, $1f, $00, $62, $fd
+	byte	$58, $ea, $61, $3d, $1f, $fc, $61, $fd, $59, $ea, $61, $fd, $01, $34, $e6, $f2
+	byte	$01, $06, $06, $f6, $f7, $f0, $03, $f6, $f8, $f2, $03, $f6, $02, $2c, $16, $f4
+	byte	$1d, $12, $46, $f4, $03, $2c, $16, $f4, $1e, $12, $46, $f4, $09, $29, $02, $f6
+	byte	$61, $2b, $06, $fb, $15, $29, $02, $f5, $61, $2b, $06, $fb, $15, $29, $0a, $f2
+	byte	$80, $29, $06, $ab, $03, $28, $a6, $ab, $0d, $f2, $07, $f1, $f7, $07, $6e, $fb
+	byte	$84, $fc, $9f, $fd, $0a, $db, $b5, $f9, $f9, $f1, $03, $f6, $04, $f0, $07, $f1
+	byte	$09, $06, $06, $f6, $61, $01, $44, $fc, $01, $00, $00, $ff, $00, $da, $05, $f1
+	byte	$fc, $07, $6e, $fb, $80, $13, $66, $fc, $5c, $fc, $9f, $fd, $d1, $4c, $00, $00
+	byte	$00[52]
+'-' timeout           res       1
+'-' data              res       1
+'-' loop_counter      res       1
+'-' rx_history        res       1                                                   ' Preserves that last five bits, used mainly for stuffed bit checking
+'-' rx_byte_counter   res       1                                                   ' Counts the number of data bytes to read from the message (initialize by DLC)
+'-' rx_bit_counter    res       1                                                   ' Used in Parse_data to count number of bits received in current byte
+'-' tx_byte_counter   res       1                                                   ' Counts the number of data bytes to write to the message
+'-' tx_bit_counter    res       1                                                   ' Counts the number of bits to send for each element (IDA,RTR,IDE,IDB,DLC,data)
+'-' temp_ident        res       1
+'-' temp_dlc          res       1
+'-' temp_data         res       8
+'-' crc               res       1
+'-' t1                res       1
+'-' t2                res       1
+'-' flags             res       1
+'-' mode              res       1
+'-' ack_counter       res       1
+'-' arb_counter       res       1
+'-' rec_counter       res       1
+	alignl
+__system__dat_
+	byte	$00[8]
+	byte	$03, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
+objmem
+	long	0[369]
+stackspace
+	long	0[1]
+	org	COG_BSS_START
+_var01
+	res	1
+_var02
+	res	1
+_var03
+	res	1
+_var04
+	res	1
+_var05
+	res	1
+_var06
+	res	1
+_var07
+	res	1
+_var08
+	res	1
+_var09
+	res	1
+_var10
+	res	1
+_var11
+	res	1
+arg01
+	res	1
+arg02
+	res	1
+arg03
+	res	1
+arg04
+	res	1
+local01
+	res	1
+local02
+	res	1
+local03
+	res	1
+local04
+	res	1
+local05
+	res	1
+local06
+	res	1
+local07
+	res	1
+local08
+	res	1
+local09
+	res	1
+local10
+	res	1
+local11
+	res	1
+local12
+	res	1
+local13
+	res	1
+local14
+	res	1
+local15
+	res	1
+local16
+	res	1
+muldiva_
+	res	1
+muldivb_
+	res	1
+	fit	480

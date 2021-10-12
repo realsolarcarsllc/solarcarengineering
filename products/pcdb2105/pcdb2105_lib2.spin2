@@ -1,0 +1,534 @@
+'' =================================================================================================
+''
+''   File....... pcdb2105_lib2.spin2
+''   Purpose.... Library for slower PCDB2105 functions
+''               MPPT tracking
+''               Temperature measurement and protection
+''               HV reverse polarity protection (at startup only)
+'' 
+''
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+'' 
+''   E-mail..... 
+''   Started....
+''   Updated.... 
+''
+'' =================================================================================================
+
+
+{{ not for objects 
+con { timing }
+  _xtlfreq = 24_000_000
+}}
+
+con 
+  PIN_TEMPB  = 39 
+  PIN_TEMPF  = 38
+  PIN_TEMPT  = 52
+
+  PIN_V12IN    = 27
+
+  PIN_CONTROL2 = 10
+  PIN_CONTROL1 = 11
+  PIN_CONTROL5 = 12
+  PIN_CONTROL7 = 13
+  PIN_CONTROL6 = 14
+  PIN_CONTROL4 = 15
+  PIN_CONTROL3 = 16 ' 10 addpins 7
+
+
+  PIN_HVOP_IN = 51
+  PIN_HVOM_IN = 49
+
+
+
+obj
+
+' main                                                          ' * master Spin cog
+  'relays : "drv8912_reva"                                       '   DRV8912 (inline PASM2)
+  'term : "jm_fullduplexserial"                                  ' * serial IO for terminal
+  'ansi : "jm_ansi"                                              '   ANSI terminal control sequences
+  vreg  : "vreg_revb"                                           ' ***
+  'can1   : "canbus_500k_reva"                                   ' *
+  tempfadc     : "simple_adc1"                                     '
+  temptadc     : "simple_adc1"                                     '
+  tempbadc     : "simple_adc1"                                     '
+  relayin1  : "simple_adc1"                                     '
+  relayin2  : "simple_adc1"                                     '
+  relayin3  : "simple_adc1"                                     '
+  relayin4  : "simple_adc1"                                     '
+  relayin5  : "simple_adc1"                                     '
+  relayin6  : "simple_adc1"                                     '
+  relayin7  : "simple_adc1"                                     '
+
+  'v12input  : "led_adc"                                     '
+  hvoutp    : "simple_adc1"                                     '
+  hvoutm    : "simple_adc1"                                     '
+  plcblks   : "plc_blocks" 
+
+' * uses cog when loaded
+
+
+
+
+var
+  long  cog
+
+'  long  adc_out[20]
+  long  mainstack[32]
+  long  Vpv,Ipv,Ppv
+  long  lastVpv,lastIpv,lastPpv     ' to compute deltas for MPPT
+
+  long  Vhv,Ihv,Phv
+  long  effic
+  long  user_vpv
+
+  long  hv_ma_limit, hv_mv_limit
+  long  buck_ma_limit, buck_mv_limit
+
+  long  maxtemp, tempslope
+  long  led_pattern, mppt_active, hv_active
+  long  buck_oneshot, hv_oneshot
+  long  ctrl_hv_on
+  long  ctrl_buck_on
+
+
+' Instrumentation measurements (averaged), passthough from vreg
+' spin doesn't have inheritance? 
+
+{{
+LED signals
+
+reverse polarity    -_-_-_
+mppt                -__-__
+cv/cc (full)        -------
+overtemp            --_--_
+
+
+}}
+
+PUB mppt_mv() : mv
+   mv := user_vpv
+
+PUB hv_mv_external() : mv
+   mv := hv_external_mv
+
+PUB hv_mv() : mv
+   mv := vreg.hv_mv()
+
+PUB hv_ma() : ma
+   ma := vreg.hv_ma()
+
+PUB buck_mv_external() : mv
+   mv := -420 ' v12input.mv()
+
+PUB buck_mv() : mv
+   mv := vreg.buck_mv()
+
+PUB buck_ma() : ma
+   ma := vreg.buck_ma()
+
+PUB pv_mv() : mv
+   mv := vreg.pv_mv()
+
+PUB pv_ma() : ma
+   ma := vreg.pv_ma()
+
+PUB buck_output_limit_count() : n
+   n := vreg.buck_output_limit_count() 
+
+PUB hv_output_limit_count() : n
+   n := vreg.hv_output_limit_count() 
+
+' Counters, used to determine updated values
+PUB measurement_count() : n
+   n := vreg.measurement_count()
+
+PUB fast_measurement_count() : n
+   n := vreg.fast_measurement_count()
+
+PUB tempf() : c
+   c := tempfadc.c()
+
+PUB tempt() : c
+   c := temptadc.c()
+
+PUB tempt_mv() : c
+   c := temptadc.mv()
+
+PUB tempb() : c
+   c := tempbadc.c()
+
+PUB set_hv_on( )
+      ctrl_hv_on := 1
+
+PUB set_hv_off( )
+      ctrl_hv_on := 0
+
+PUB buck_mv_setpoint() : mv
+   mv := buck_mv_limit
+
+PUB get_buck_on( ) : bool
+   bool := ctrl_buck_on
+
+PUB set_buck_on( )
+      ctrl_buck_on := 1
+
+PUB set_buck_off( )
+      ctrl_buck_on := 0
+
+PUB set_hv_mv( mv )
+      hv_mv_limit := mv
+
+pub start()
+  user_vpv := 16000 
+  buck_mv_limit :=  13800     '
+  buck_ma_limit :=   5000
+  hv_mv_limit   := 390000     ' To allow for tolerances, we advise 4.1v/cell max for Li Ion 
+  hv_ma_limit   :=   1000
+
+  cog := cognew( main() , @mainstack ) + 1
+
+PUB stop
+'' Stop driver cog
+
+  'relays.stop()
+
+  tempfadc.stop( )
+  temptadc.stop( )
+  tempbadc.stop( )
+  relayin1.stop( ) ' TODO calibration not tested
+  relayin2.stop( )
+  relayin3.stop( )
+  relayin4.stop( )
+  relayin5.stop( )
+  relayin6.stop( )
+  relayin7.stop( )
+  'v12input.stop( )
+
+  hvoutp.stop( ) 
+  hvoutm.stop( ) 
+
+
+  vreg.stop() 
+  if cog
+    cogstop(cog-1)
+  cog := 0 
+
+
+  ' float pins to save power, these power optoisolators, so high power loss
+  _dirl(53) 'hv inrush preventer
+  _dirl(56) 'hv output switch
+  _dirl(57) 'hv output switch 
+  pinhigh(1) ' encomizer output to minimum
+  pinlow(2) ' turn off economizer + sensor power
+
+
+pub main() | x, t, i, a
+
+	'	pinh(25) '12V RPP 
+  ctrl_hv_on := 0
+  ctrl_buck_on := 0
+  setup()
+
+
+
+
+  pinhigh(1) ' encomizer output to minimum
+  pinhigh(2) ' turn on economizer + sensor power
+  'pinhigh(0) ' TPS65053  forced continuous mode  
+  pinlow(0) ' TPS65053  eco mode   
+ 
+
+
+  'pinl(25) '12V RPP off for startup
+
+  led_pattern := $f
+  hv_active := 0 
+
+
+  buck_oneshot := 0 
+  hv_oneshot := 0 
+
+
+
+
+  'term.hex( relays.inout(7 + $20 ,0) )  ' read version
+  'term.hex( relays.inout($1A, $40) ) ' Keep half bridges active after open load detect
+  'term.hex( relays.inout($0A, $02) ) ' 9=high
+
+
+  if 0 
+    repeat
+      'relays.inout(10,8)
+      waitms(1)
+
+  'now controlled by vreg  pinh(26) 'PV RPP
+
+
+'
+  'repeat
+  '   waitms(1)
+
+  repeat
+
+     plc() 
+
+     ' Serialise the LED flash pattern 
+     ' TODO automatically adjust with clkfreq
+     'v12input.set_output(   (led_pattern>>( (_getcnt()>>24)&3 ))&1  )
+
+     if vreg.measurement_count <> t
+        t := vreg.measurement_count
+
+        mppt()
+        temperature_protection()
+
+	if t==1  'TODO oneshot this
+		user_vpv := ((vreg.pv_mv*80)/10000)*100  ' Initial MPPT setting at 80% of Voc
+
+{{
+     if can1.ID                                          ' Check if an ID was received
+       if can1.ID > $7FF
+         'term.Hex(can1.ID)
+       else
+         'term.Hex(can1.ID)
+       'fds.Tx($09)                                         
+       if can1.CheckRTR
+         'term.Str(string("remote transmission request"))
+       else
+         a := can1.DataAddress                           ' DataAddress returns the address of a string of data bytes
+         repeat byte[a++]                                  '  The first byte contains the string length 
+           'term.Hex(byte[a++])                            '  Display bytes
+           'term.str(string(" "))
+       'term.str(string( 13, 10))
+       can1.NextID                                       ' Clear current ID buffer and advance to next
+}}
+
+var 
+  long  buck_in_comparator, buck_in_range, buck_charge_ok
+
+  long  hv_external_mv, hv_ext_comparator, hv_ext_in_range, hv_precharge_difference
+  long  hv_precharge_ok, hv_charge_ok 
+
+
+pub plc() 
+  plcblks.update()                                        ' Checks the system counter to calculate time interval
+
+{{
+  FIXME 12v reverse polarity protection moved to main 
+
+  v12input.update()     ' This ADC needs frequent servicing to switch from ADC reading to LED driving
+ 
+  buck_in_comparator := (v12input.mv() > -1_500) and (v12input.mv() < 50_000) 
+  buck_in_range := plcblks.ton( buck_in_comparator  , 0 , 2_000_000 ) 
+
+  if buck_in_range
+    if not buck_oneshot
+      buck_oneshot := 1 
+      vreg.buck_ma_autozero()         ' be sure to have enough delay for average readings to settle
+    pinh(25) '12V RPP switch closed
+  else
+    pinl(25) '12V RPP off for startup
+
+  buck_charge_ok := plcblks.ton( buck_in_range  , 1 , 2_000_000 ) 
+}}
+
+  if ctrl_buck_on
+    vreg.set_buck_mv( buck_mv_limit )
+    vreg.set_buck_on()
+  else
+    vreg.set_buck_off() 
+
+
+  'hv_external_mv := hvoutp.mv()*10 - vreg.fast_hvm_mv()    ' FIXME samples are not time-coincident 
+  ' This can cause significant common mode interference to readings.
+  ' Also, the positive and negative are on different ends of a common mode choke
+ 
+  hv_external_mv := hvoutp.mv()*10 - vreg.hvm_mv()    ' FIXME samples are not time-coincident
+  ' Averaging over multiple DC-DC periods  
+
+  hv_ext_comparator := (hv_external_mv > -10_000) and (hv_external_mv < 430_000 )
+  hv_ext_in_range := plcblks.ton( hv_ext_comparator  , 2 , 2_000_000 ) 
+
+  'vreg.set_hv_mv( hv_mv_limit )  ' charge mode
+
+  if hv_ext_in_range
+    if not hv_oneshot
+      hv_oneshot := 1 
+      vreg.hv_ma_autozero()
+    'pinl(53) 'hv inrush preventer, comment out to use body diode for output current
+    pinl(56) 'hv output switch
+    pinh(57) 'hv output switch
+    
+    hv_active := 1
+
+  if hv_ext_in_range
+    if ctrl_hv_on==1
+      vreg.set_hv_on()
+      vreg.set_hv_mv( hv_mv_limit )  ' charge mode
+    else
+      vreg.set_hv_off() 
+      vreg.set_hv_mv( 0 ) ' Comment out for HV step response testing
+  else
+    vreg.set_hv_off() 
+    vreg.set_hv_mv( 0 )  ' Comment out for HV step response testing 
+                         ' By setting output voltage to zero,
+                         ' the input shaper ramp will soft start.
+
+{{
+latch on
+  else 
+    _fltl(53) 'hv backflow preventer
+    _fltl(56) 'hv output switch
+    _flth(57) 'hv output switch 
+}}
+
+pub temperature_protection()
+  maxtemp := tempfadc.c()
+  if temptadc.c() > maxtemp
+    maxtemp := temptadc.c()
+  if tempbadc.c() > maxtemp
+    maxtemp := tempbadc.c()
+
+
+  ' Linear over-temperature protection 
+  tempslope := 95 - maxtemp
+  if tempslope < 0 
+    tempslope := 0 
+  if tempslope > 20
+    tempslope := 20  ' TODO signal tempertature limiting 
+  ' TODO detect failed temperature sensor 
+ 
+  vreg.set_hv_ma(   (  hv_ma_limit*tempslope) / 20 )
+  vreg.set_buck_ma( (buck_ma_limit*tempslope) / 20 )
+
+
+                                             ' Set the LED flash signal 
+  if (buck_in_range<>1) or (hv_active<>1)    ' Reverse polarity or Overvoltage error
+    led_pattern := $5                        ' 50% duty fast
+  else
+    if tempslope <> 20                       ' Over temperature
+      led_pattern := $e                      ' 75% duty 
+    else
+      if mppt_active                         ' Input power limited
+        led_pattern := $1                    ' 25% duty 
+      else                                   ' Output limited Constant Voltage or Constant Current
+        led_pattern := $f                    ' 100% duty
+
+
+
+pub mppt()
+         Ipv := vreg.pv_ma()
+         Vpv := vreg.pv_mv()
+         
+       '  Vhv := vreg.hv_mv()
+       '  Ihv := vreg.hv_ma()
+         
+         Ppv := Ipv*Vpv/1000  ' mW 
+         Phv := Ihv*Vhv/1000  ' mW 
+       '  effic := 1000*Phv/Ppv
+                              
+         'cc_hv_mwh+= (((Phv/16)*(cc_time/8192))/8192)
+         
+         mppt_active := 0
+         if (vreg.buck_output_limit_count > 6000) or (vreg.hv_output_limit_count > 6000)  ' 
+            mppt_active := 1
+            ' Incremental Conductance, microchip AN1521
+            if ( abs(Vpv-lastVpv) )<1     '  no delta V
+                if ( abs(Ipv-lastIpv))>2 ' yes delta I
+                    if Ipv>lastIpv      ' pos delta I
+                        user_vpv+=100
+                    else
+                        user_vpv-=100
+               
+            else           
+                if (abs(Ppv-lastPpv))>10     ' yes delta P
+                    if  Ppv>lastPpv          ' pos delta P         
+                        if Vpv>lastVpv       ' pos delta V, 
+                            user_vpv+=100      ' pos/pos
+                        else
+                            user_vpv-=100      ' pos/neg     
+                    else
+                        if Vpv>lastVpv       ' pos delta V, 
+                            user_vpv-=100      ' neg/pos
+                        else
+                            user_vpv+=100      ' neg/neg
+                                            
+                                            
+            'if Ipv<400                         ' no current, we are above Voc
+            '    user_vpv-=100   
+               
+
+         ' TODO make sure vmppt is less than Vpv
+        ' if user_vpv > Vpv + 200
+        '        user_vpv := ((Vpv + 200 )/100)*100 
+ 
+   
+         if user_vpv < 11000
+                user_vpv := 11000
+            
+         if user_vpv > 50000
+                user_vpv := 50000
+         vreg.set_vmppt(user_vpv)
+
+         lastIpv:=Ipv
+         lastVpv:=Vpv
+         lastPpv:=Ppv
+
+
+pub setup()
+  
+
+  vreg.start( )
+
+'' Setup IO and objects for application
+  'relays.start()
+
+  tempfadc.start( PIN_TEMPF )
+  temptadc.start( PIN_TEMPT )
+  tempbadc.start( PIN_TEMPB )
+{{
+  relayin1.start_drv( PIN_CONTROL1 , 59500, 0  ) ' TODO calibration not tested
+  relayin2.start_drv( PIN_CONTROL2 , 59500, 0  )
+  relayin3.start_drv( PIN_CONTROL3 , 59500, 0  )
+  relayin4.start_drv( PIN_CONTROL4 , 59500, 0  )
+  relayin5.start_drv( PIN_CONTROL5 , 59500, 0  )
+  relayin6.start_drv( PIN_CONTROL6 , 59500, 0  )
+  relayin7.start_drv( PIN_CONTROL7 , 59500, 0  )
+  'v12input.start_drv( PIN_V12IN , 99000, -7200 )
+}}
+  hvoutp.start_drv( PIN_HVOP_IN , 53940 , -53600 ) ' /10 
+  hvoutm.start_drv( PIN_HVOM_IN , 53940 , -53600 ) ' /10 
+
+  plcblks.start() 
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

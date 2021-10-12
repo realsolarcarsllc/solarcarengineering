@@ -1,0 +1,70 @@
+'' =================================================================================================
+''
+''   File....... plc_blocks.spin2
+''   Purpose.... Spin2 library for common PLC functions
+''               Only Ton is implemented right now. 
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''               -- see below for terms of use
+''   E-mail..... 
+''   Started....
+''   Updated.... 16 JUL 2021
+''
+'' =================================================================================================
+
+
+
+var
+
+  long  looptime 
+  long  lastcnt 
+  long  plc_states[32]
+
+pub start()
+  lastcnt:= _getcnt()
+  looptime:=0 
+
+pub update() | clocks, count
+  count := _getcnt()
+  clocks := count-lastcnt
+  lastcnt := count
+  looptime := clocks/(clkfreq/1000000)   ' FIXME inaccurate if sysclock is not a multiple of 1MHz
+  
+
+pub ton(in, statevarnum, time) : out
+
+  out := 0 
+  if (in == 1) or (in==-1)
+    plc_states[statevarnum] := plc_states[statevarnum] + looptime
+    if plc_states[statevarnum] > time
+      plc_states[statevarnum] := time
+      out := 1
+  else 
+    plc_states[statevarnum] := 0
+
+
+
+con { license }
+
+{{
+
+  Terms of Use: MIT License
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
+  software and associated documentation files (the "Software"), to deal in the Software
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to the following
+  conditions:
+
+  The above copyright notice and this permission notice shall be included in all copies
+  or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+  PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+  CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+  OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+}}

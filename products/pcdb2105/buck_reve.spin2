@@ -1,0 +1,295 @@
+'' =================================================================================================
+''
+''   File....... buck_reve.spin2
+''   Purpose.... Buck converter PWM generator for PCDB2105
+''     
+''               Has some experiments for dynamic deadtime adjustment. (not used now)
+'' 
+''               Receives a value from VREG for the comparator threshold that is 
+''                 half of the supply voltage.
+''               After turning off a mosfet, wait for voltage to reach halfway point.
+''               Wait a similar amount of time. 
+''               Turn on the other mosfet.
+''               
+''
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+'' 
+''   E-mail..... 
+''   Started....
+''   Updated.... 
+''
+'' =================================================================================================
+
+
+CON
+
+  'pin assignments normal 
+  PSFB_LEADH = 37
+  PSFB_LEADL = 36
+  PSFB_LAGH = 35
+  PSFB_LAGL = 34
+  BUCK_H = 33
+  BUCK_L = 32
+  BUCK_SENSE = 41
+
+  ' TEST
+'  PSFB_LEADH = 33
+'  PSFB_LEADL = 32
+'  PSFB_LAGH = 35
+'  PSFB_LAGL = 34
+'  BUCK_H = 37
+'  BUCK_L = 36
+
+' TODO: 
+'   watchdog timer 
+'   dynamic duty cycle and more 
+'   shutdown mode
+ 
+  
+    
+VAR
+    'long guarda[100]
+    long cog
+    'long guardb[100]
+ 
+'    long dynamic_load_length      ' 3=all below dynamically programmable, 1=only duty cycle programmable
+    long spin_clocks_halfone      ' Duty cycle, keep below clocks_total-???? 
+    long spin_threshold        
+    long spin_clocks_total        ' The number of clock cycles for half a complete switching cycle 
+    long spin_clocks_deadtime     ' Deadtime length 
+    
+
+PUB stop()
+'' Stop driver cog
+
+  spin_clocks_halfone := 0 
+  if cog
+    cogstop(cog-1)
+  cog := 0 
+
+
+PUB Start(): control_addr
+
+  stop
+
+  spin_clocks_halfone  :=    0 ' FIXME
+  spin_threshold       :=   14
+  spin_clocks_total    :=  500
+  spin_clocks_deadtime :=   10 
+
+  dynamic_reg_n:= 1
+  control_addr := @spin_clocks_halfone 
+  
+  cog := cognew(@psfbcog, @spin_clocks_halfone) + 1 
+
+
+  
+DAT
+      'assembly code starts here'
+      org
+psfbcog
+                drvl    #PSFB_LEADH
+                drvl    #PSFB_LAGH
+                drvl    #PSFB_LEADL
+                drvl    #PSFB_LAGL
+                drvl    #BUCK_H
+                drvl    #BUCK_L
+
+		wrpin	mode_cmp,#BUCK_SENSE
+                getct   psfb_ct
+                addct1  psfb_ct,clocks_total        ' delay before starting
+                waitct1                             ' just in case we were in a bad state
+                
+                
+                'mov     outa,_llc_mask_bl          ' charge bootstrap
+                                                   ' Turn on low side to charge the 
+            '    drvh    #PSFB_LEADL                ' high side bootstrap capacitors.
+            '    drvh    #PSFB_LAGL                 '  L  H  L  H
+
+                addct1  psfb_ct,clocks_total
+                waitct1 
+
+		and	dynamic_reg_n,#3		' limit to safe values 
+                                                   
+_psfb_loop           
+		setq	dynamic_reg_n				' the number of registers to update 
+		rdlong	clocks_halfone,ptra
+		
+		setbyte mode_cmp,cmp_threshold,#1
+		wrpin	mode_cmp,#BUCK_SENSE
+
+		'sar	clocks_halfone,#1
+
+                fge     clocks_halfone,#12  wc   ' C=unsigned(D<S)
+                mov     clocks_halftwo,clocks_total
+                sub     clocks_halftwo,clocks_halfone
+                
+      '          rdlong  _llc_deadtime,_llc_dt_addr
+                'sub     clocks_halftwo,clocks_deadtime     
+                'sub     clocks_halftwo,clocks_deadtime    
+
+                ' We could update the duty cycle halfway through. 
+                ' We don't because we want the transformer to 
+                ' stay DC balanced even if the programmed duty cycle 
+                ' is unstable or being maliciously manipulated.  
+                
+                                                   ' DH DL GH GL 
+                ' The incoming state at this time is  L  H  L  H
+                ' The same whether we came from the
+                ' runtime loop or the initialization 
+                ' bootstrap precharge.
+
+                addct1  psfb_ct,clocks_halftwo     ' 
+                waitct1                                       ' wait for part 2  
+		mov	self_comm_count,self_comm_limit
+                drvl    #BUCK_L                '  L  L  L  H 
+
+	' Forced hard switch for rising edge, uncomment these 2 lines
+		waitx   #10
+      if_nc     drvh    #BUCK_H                '  H  L  L  H  always hard switch
+		jmp	#.comm_h0		' give up and hard switch
+
+
+
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h0
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h4
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h8
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h12
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h16
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h20
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h24
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h28
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h32
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h36
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h40
+		testp	#BUCK_SENSE	wz
+	if_nz	jmp	#.comm_h44
+
+
+.comm_h44	waitx	#2
+.comm_h40	waitx	#2
+.comm_h36	waitx	#2
+.comm_h32	waitx	#2
+.comm_h28	waitx	#2
+.comm_h24	waitx	#2
+.comm_h20	waitx	#2
+.comm_h16	waitx	#2
+.comm_h12	waitx	#2
+.comm_h8	waitx	#2
+.comm_h4	waitx	#2
+.comm_h0      if_nc     drvh    #BUCK_H                '  H  L  L  H
+                
+                                                   
+                addct1  psfb_ct,clocks_halfone
+                waitct1                                       ' wait for part 1
+
+
+                drvl    #BUCK_H                 '  H  L  L  L
+
+	' Hard switch test branch
+		waitx	#10
+	if_nc	drvh    #BUCK_L                 '  H  L  H  L	' Hard switch
+		jmp	#.comm_la		' hard 
+
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_la
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lb
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lc
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_ld
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_le
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lf
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lg
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lh
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_li
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lj
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_lk
+		testp	#BUCK_SENSE	wz
+	if_z	jmp	#.comm_ll
+		jmp	#.comm_la		' give up and hard switch
+
+.comm_lm	waitx	#2
+.comm_ll	waitx	#2
+.comm_lk	waitx	#2
+.comm_lj	waitx	#2
+.comm_li	waitx	#2
+.comm_lh	waitx	#2
+.comm_lg	waitx	#2
+.comm_lf	waitx	#2
+.comm_le	waitx	#2
+.comm_ld	waitx	#2
+.comm_lc	waitx	#2
+.comm_lb	waitx	#2
+.comm_la if_nc  drvh    #BUCK_L                 '  H  L  H  L
+                
+ 
+                jmp     #_psfb_loop
+                
+  
+
+
+psfb_ct          long      0
+tmp              long      0
+dynamic_reg_n    long      1
+clocks_halftwo   long      0 ' dynamically calculated 
+
+clocks_halfone   long    100
+cmp_threshold    long     38
+clocks_total     long    832
+clocks_deadtime  long     30
+
+mode_cmp	long	p_level_a | (15<<8)
+self_comm_count long    0
+self_comm_limit	long	10
+
+
+'  400nS 
+'  700nS with 471 cap accross transformer 
+
+' all important data is stored before the dynamically loaded values
+
+fit
+
+
+con { license }
+
+{{
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+}}
