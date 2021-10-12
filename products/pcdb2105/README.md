@@ -17,3 +17,6 @@ Therefore, plan on one of these options:
 - pcdb_test10 :: simultaneous 13.8v and 400v output, always on
 - RSC_flashloader :: flash chip programming utility
 - flash :: shell script with proper loadp2 options for programming the flash chip
+
+You will need flexspin and loadp2 to program the board. You can easily get both by installing flexprop, available here:   
+https://github.com/totalspectrum/flexprop
