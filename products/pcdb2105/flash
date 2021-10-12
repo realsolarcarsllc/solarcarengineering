@@ -1,0 +1,1 @@
+loadp2 -b 230400 "@0=RSC_flashloader.binary,@8000+pcdb2105_testvolt2.binary" -t -k

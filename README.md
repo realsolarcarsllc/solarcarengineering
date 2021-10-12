@@ -8,3 +8,9 @@ We are packaging everything together for easier downloads.
 - bci2103 - 40 pin connector to wire interface, with holes for pass-through diodes
 # Engineering Info
 - 
+
+© 2021 Real Solar Cars, LLC
+PO Box 9372 
+Albuquerque, NM 87119-9372
+USA
+
