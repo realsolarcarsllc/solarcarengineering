@@ -10,7 +10,9 @@ Therefore, plan on one of these options:
 
 ### Documentation Files
 - ibom.html :: Interactive HTML bom, shows the exact position of parts on the board
+- - View it https://htmlpreview.github.io/?https://github.com/realsolarcarsllc/solarcarengineering/blob/main/products/pcdb2105/ibom.html
 - schematic.pdf :: 
+- - View it https://github.com/realsolarcarsllc/solarcarengineering/blob/main/products/pcdb2105/schematic.pdf
 
 ### Source Code
 - pcdb_testvolt2 :: tests CAN operation, single output 13.8v or 400v 
