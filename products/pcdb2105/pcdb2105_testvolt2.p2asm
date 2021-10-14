@@ -242,9 +242,9 @@ _night
 	mov	arg01, #31
 	mov	arg02, ##99000
 	mov	arg03, ##-7300
-	add	objptr, ##1372
+	add	objptr, ##1376
 	call	#_simple_adc1_start_drv
-	sub	objptr, ##1460
+	sub	objptr, ##1464
 LR__0005
 	add	objptr, #84
 	rdlong	local04, objptr
@@ -259,9 +259,9 @@ LR__0005
 	and	local05, #15
 	shr	arg01, local05
 	and	arg01, #1
-	add	objptr, ##1356
+	add	objptr, ##1360
 	wrlong	arg01, objptr
-	sub	objptr, #24
+	sub	objptr, #28
 	call	#_led_adc_update
 	sub	objptr, ##1420
 	getct	result1
@@ -280,16 +280,30 @@ LR__0005
 	call	#_jm_fullduplexserial_dec
 	mov	arg01, ##@LR__0178
 	call	#_jm_fullduplexserial_str
-	add	objptr, ##1340
+	add	objptr, ##1344
 	call	#_simple_adc1_mv
 	mov	arg01, result1
-	sub	objptr, ##1340
+	sub	objptr, ##1344
 	call	#_jm_fullduplexserial_dec
 	mov	arg01, ##@LR__0179
 	call	#_jm_fullduplexserial_str
-	add	objptr, ##1340
+	add	objptr, ##1304
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##1304
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0180
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1312
+	rdlong	result1, objptr
+	mov	arg01, result1
+	sub	objptr, ##1312
+	call	#_jm_fullduplexserial_dec
+	mov	arg01, ##@LR__0181
+	call	#_jm_fullduplexserial_str
+	add	objptr, ##1344
 	call	#_simple_adc1_mv
-	sub	objptr, ##1460
+	sub	objptr, ##1464
 	cmps	result1, ##29000 wcz
  if_be	jmp	#LR__0006
 	add	local01, #1
@@ -305,9 +319,9 @@ LR__0006
 	sub	objptr, #84
 	jmp	#LR__0005
 LR__0007
-	add	objptr, ##1460
+	add	objptr, ##1464
 	call	#_simple_adc1_stop
-	sub	objptr, ##1460
+	sub	objptr, ##1464
 	mov	ptra, fp
 	call	#popregs_
 _night_ret
@@ -327,7 +341,7 @@ _day
 	wrlong	#0, objptr
 	mov	local02, #0
 	mov	local03, #0
-	mov	arg01, ##@LR__0180
+	mov	arg01, ##@LR__0182
 	add	objptr, #52
 	call	#_jm_fullduplexserial_str
 	drvl	#5
@@ -358,9 +372,9 @@ LR__0008
 	shr	local04, local05
 	and	local04, #1
 	mov	arg01, local04
-	add	objptr, ##1356
+	add	objptr, ##1360
 	wrlong	arg01, objptr
-	sub	objptr, #24
+	sub	objptr, #28
 	call	#_led_adc_update
 	sub	objptr, #496
 	rdlong	result1, objptr
@@ -375,14 +389,14 @@ LR__0008
 	mov	arg01, result1
 	sub	objptr, ##1300
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0181
+	mov	arg01, ##@LR__0183
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##808
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##808
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0182
+	mov	arg01, ##@LR__0184
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##812
 	rdlong	result1, objptr
@@ -392,21 +406,21 @@ LR__0008
 	mov	arg01, result1
 	sub	objptr, ##732
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0183
+	mov	arg01, ##@LR__0185
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##816
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##816
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0184
+	mov	arg01, ##@LR__0186
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##820
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##820
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0185
+	mov	arg01, ##@LR__0187
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##824
 	rdlong	result1, objptr
@@ -416,14 +430,14 @@ LR__0008
 	mov	arg01, result1
 	sub	objptr, ##728
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0186
+	mov	arg01, ##@LR__0188
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##688
 	call	#_vreg_revb_hv_mv
 	mov	arg01, result1
 	sub	objptr, ##688
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0187
+	mov	arg01, ##@LR__0189
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##812
 	rdlong	local08, objptr
@@ -454,7 +468,7 @@ LR__0008
 	mov	arg01, muldivb_
 	add	objptr, #120
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0188
+	mov	arg01, ##@LR__0190
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##816
 	rdlong	local01, objptr
@@ -472,75 +486,75 @@ LR__0008
 	mov	arg01, muldivb_
 	add	objptr, #120
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0189
+	mov	arg01, ##@LR__0191
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##916
 	call	#_simple_adc1_c
 	mov	arg01, result1
 	sub	objptr, ##916
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0190
+	mov	arg01, ##@LR__0192
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##932
 	call	#_simple_adc1_c
 	mov	arg01, result1
 	sub	objptr, ##932
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0191
+	mov	arg01, ##@LR__0193
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##948
 	call	#_simple_adc1_c
 	mov	arg01, result1
 	sub	objptr, ##948
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0192
+	mov	arg01, ##@LR__0194
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##596
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##596
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0193
+	mov	arg01, ##@LR__0195
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##840
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##840
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0194
+	mov	arg01, ##@LR__0196
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##844
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##844
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0195
+	mov	arg01, ##@LR__0197
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #60
 	rdlong	arg01, objptr
 	add	objptr, #60
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0196
+	mov	arg01, ##@LR__0198
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #64
 	rdlong	arg01, objptr
 	add	objptr, #64
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0197
+	mov	arg01, ##@LR__0199
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##932
 	call	#_simple_adc1_mv
 	mov	arg01, result1
 	sub	objptr, ##932
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0198
+	mov	arg01, ##@LR__0200
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##664
 	rdlong	result1, objptr
 	mov	arg01, result1
 	sub	objptr, ##664
 	call	#_jm_fullduplexserial_dec
-	mov	arg01, ##@LR__0199
+	mov	arg01, ##@LR__0201
 	call	#_jm_fullduplexserial_str
 	mov	local01, #0
 	add	objptr, ##648
@@ -620,7 +634,7 @@ LR__0014
 	sub	objptr, #60
 	cmp	local01, local09 wz
  if_e	jmp	#LR__0015
-	mov	arg01, ##@LR__0200
+	mov	arg01, ##@LR__0202
 	add	objptr, #120
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -639,7 +653,7 @@ LR__0016
 	sub	objptr, #60
 	cmp	local01, local09 wz
  if_e	jmp	#LR__0017
-	mov	arg01, ##@LR__0201
+	mov	arg01, ##@LR__0203
 	add	objptr, #120
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -697,14 +711,14 @@ LR__0019
 	mov	arg01, local13
 	add	objptr, #44
 	call	#_jm_fullduplexserial_hex
-	mov	arg01, ##@LR__0202
+	mov	arg01, ##@LR__0204
 	call	#_jm_fullduplexserial_str
 	add	objptr, ##1244
 	call	#_Canbus_controller_rxRTR
 	sub	objptr, ##1364
 	cmp	result1, #0 wz
  if_e	jmp	#LR__0020
-	mov	arg01, ##@LR__0203
+	mov	arg01, ##@LR__0205
 	add	objptr, #120
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -728,7 +742,7 @@ LR__0021
 	mov	arg01, result1
 	sub	objptr, ##1270
 	call	#_jm_fullduplexserial_hex
-	mov	local11, ##@LR__0204
+	mov	local11, ##@LR__0206
 	mov	arg01, local11
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -736,7 +750,7 @@ LR__0021
 	cmp	local14, local15 wz
  if_ne	jmp	#LR__0021
 LR__0022
-	mov	arg01, ##@LR__0205
+	mov	arg01, ##@LR__0207
 	add	objptr, #120
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -747,7 +761,7 @@ LR__0023
 	add	objptr, ##820
 	call	#_Canbus_controller_stop
 	drvh	#5
-	mov	arg01, ##@LR__0206
+	mov	arg01, ##@LR__0208
 	sub	objptr, ##1244
 	call	#_jm_fullduplexserial_str
 	sub	objptr, #120
@@ -2596,14 +2610,14 @@ _led_adc_mv
 	sub	objptr, #4
 	rdlong	_var02, objptr
 	sub	_var01, _var02
-	add	objptr, #12
+	add	objptr, #16
 	rdlong	_var03, objptr
 	qmul	_var03, _var01
 	getqx	result1
 	shr	result1, #10
 	sub	objptr, #4
 	rdlong	_var04, objptr
-	sub	objptr, #12
+	sub	objptr, #16
 	add	result1, _var04
 _led_adc_mv_ret
 	ret
@@ -2613,7 +2627,7 @@ _led_adc_update
 	call	#pushregs_
 	getct	result1
 	mov	local01, result1
-	add	objptr, #36
+	add	objptr, #40
 	rdlong	local02, objptr
 	sub	local01, local02
 	wrlong	result1, objptr
@@ -2623,56 +2637,56 @@ _led_adc_update
 	wrlong	local03, objptr
 	sub	objptr, #4
 	rdlong	local03, objptr
-	sub	objptr, #28
+	sub	objptr, #32
 	cmp	local03, #1 wz
  if_ne	jmp	#LR__0145
-	add	objptr, #32
+	add	objptr, #36
 	rdlong	local03, objptr
-	sub	objptr, #32
+	sub	objptr, #36
 	cmps	local03, ##40960 wcz
  if_be	jmp	#LR__0147
-	add	objptr, #20
+	add	objptr, #24
 	rdlong	arg01, objptr
 	mov	result1, #0
 	rdpin	result1, arg01
 	mov	local04, result1
-	sub	objptr, #12
+	sub	objptr, #16
 	wrlong	local04, objptr
-	add	objptr, #24
+	add	objptr, #28
 	wrlong	#0, objptr
 	sub	objptr, #4
 	wrlong	#0, objptr
 	sub	objptr, #4
 	rdlong	local03, objptr wz
-	sub	objptr, #24
+	sub	objptr, #28
  if_e	jmp	#LR__0144
-	add	objptr, #20
+	add	objptr, #24
 	rdlong	arg01, objptr
 	drvh	arg01
-	sub	objptr, #20
+	sub	objptr, #24
 	wrpin	##1146992, arg01
 	jmp	#LR__0147
 LR__0144
-	add	objptr, #20
+	add	objptr, #24
 	rdlong	arg01, objptr
 	drvl	arg01
-	sub	objptr, #20
+	sub	objptr, #24
 	wrpin	##1146992, arg01
 	jmp	#LR__0147
 LR__0145
-	add	objptr, #32
+	add	objptr, #36
 	rdlong	local03, objptr
-	sub	objptr, #32
+	sub	objptr, #36
 	cmps	local03, ##163840 wcz
  if_be	jmp	#LR__0146
-	add	objptr, #32
+	add	objptr, #36
 	wrlong	#0, objptr
 	sub	objptr, #4
 	wrlong	#1, objptr
 	sub	objptr, #8
 	rdlong	arg01, objptr
 	wrpin	##1146928, arg01
-	sub	objptr, #20
+	sub	objptr, #24
 	drvl	arg01
 LR__0146
 LR__0147
@@ -2682,17 +2696,12 @@ _led_adc_update_ret
 	ret
 
 _led_adc_start_drv
-	mov	COUNT_, #1
+	mov	COUNT_, #5
 	call	#pushregs_
-	mov	muldiva_, arg02
-	add	objptr, #24
+	mov	local01, arg02
+	add	objptr, #28
 	wrlong	#0, objptr
-	getct	result1
-	add	objptr, #12
-	wrlong	result1, objptr
 	sub	objptr, #4
-	wrlong	#0, objptr
-	sub	objptr, #12
 	wrlong	arg01, objptr
 	sub	objptr, #8
 	wrlong	arg03, objptr
@@ -2704,36 +2713,63 @@ _led_adc_start_drv
 	drvl	arg01
 	wrpin	##1146992, arg01
 	waitx	##40960
-	mov	local01, #0
-	rdpin	local01, arg01
-	sub	objptr, #16
-	wrlong	local01, objptr
-	add	objptr, #16
+	mov	local02, #0
+	rdpin	local02, arg01
+	sub	objptr, #20
+	wrlong	local02, objptr
+	add	objptr, #20
 	rdlong	arg01, objptr
+	dirl	arg01
+	mov	arg02, ##1441862
+	wrpin	##1441862, arg01
+	decod	arg02, #13
+	wxpin	arg02, arg01
+	decod	arg02, #15
+	wypin	arg02, arg01
+	dirh	arg01
 	drvh	arg01
 	waitx	##40960
 	mov	result1, #0
 	rdpin	result1, arg01
-	mov	muldivb_, result1
-	rdlong	arg01, objptr
-	wrpin	##1146928, arg01
-	sub	muldiva_, arg03
-	shl	muldiva_, #10
-	sub	objptr, #16
-	rdlong	local01, objptr
+	mov	local03, result1
+	shl	local03, #1
+	sub	objptr, #12
+	wrlong	local03, objptr
+	add	local01, arg03
+	abs	local04, local01 wc
+	shr	local04, #1
+ if_b	neg	local04, local04
+	sub	local04, arg03
+	shl	local04, #10
+	rdlong	muldivb_, objptr
+	sub	objptr, #8
+	rdlong	local05, objptr
 	sub	objptr, #4
-	sub	muldivb_, local01
+	sub	muldivb_, local05
+	mov	muldiva_, local04
 	call	#divide_
-	add	objptr, #16
+	add	objptr, #20
 	wrlong	muldivb_, objptr
-	waitx	##40960
 	add	objptr, #4
 	rdlong	arg01, objptr
-	mov	result1, #0
-	rdpin	result1, arg01
-	sub	objptr, #12
+	dirl	arg01
+	wrpin	##1146928, arg01
+	wxpin	#13, arg01
+	drvl	arg01
+	dirh	arg01
+	waitx	##40960
+	mov	local02, #0
+	rdpin	local02, arg01
+	sub	objptr, #16
+	wrlong	local02, objptr
+	add	objptr, #24
+	wrlong	#1, objptr
+	getct	result1
+	add	objptr, #8
 	wrlong	result1, objptr
-	sub	objptr, #8
+	sub	objptr, #4
+	wrlong	#0, objptr
+	sub	objptr, #36
 	mov	ptra, fp
 	call	#popregs_
 _led_adc_start_drv_ret
@@ -2887,19 +2923,19 @@ LR__0178
 	byte	0
 LR__0179
 	byte	","
-	byte	13
-	byte	10
 	byte	0
 LR__0180
-	byte	"DAY"
-	byte	13
-	byte	10
+	byte	","
 	byte	0
 LR__0181
 	byte	","
+	byte	13
+	byte	10
 	byte	0
 LR__0182
-	byte	","
+	byte	"DAY"
+	byte	13
+	byte	10
 	byte	0
 LR__0183
 	byte	","
@@ -2917,25 +2953,25 @@ LR__0187
 	byte	","
 	byte	0
 LR__0188
-	byte	"mW,"
+	byte	","
 	byte	0
 LR__0189
-	byte	"%,"
+	byte	","
 	byte	0
 LR__0190
-	byte	"C,"
+	byte	"mW,"
 	byte	0
 LR__0191
-	byte	"C,"
+	byte	"%,"
 	byte	0
 LR__0192
 	byte	"C,"
 	byte	0
 LR__0193
-	byte	","
+	byte	"C,"
 	byte	0
 LR__0194
-	byte	","
+	byte	"C,"
 	byte	0
 LR__0195
 	byte	","
@@ -2950,33 +2986,39 @@ LR__0198
 	byte	","
 	byte	0
 LR__0199
-	byte	13
-	byte	10
+	byte	","
 	byte	0
 LR__0200
-	byte	"ON"
-	byte	13
-	byte	10
+	byte	","
 	byte	0
 LR__0201
-	byte	"OFF"
 	byte	13
 	byte	10
 	byte	0
 LR__0202
-	byte	" "
+	byte	"ON"
+	byte	13
+	byte	10
 	byte	0
 LR__0203
-	byte	"Remote Transmission Request"
+	byte	"OFF"
+	byte	13
+	byte	10
 	byte	0
 LR__0204
 	byte	" "
 	byte	0
 LR__0205
+	byte	"Remote Transmission Request"
+	byte	0
+LR__0206
+	byte	" "
+	byte	0
+LR__0207
 	byte	13
 	byte	10
 	byte	0
-LR__0206
+LR__0208
 	byte	"NIGHT"
 	byte	13
 	byte	10
@@ -3259,7 +3301,7 @@ __system__dat_
 	byte	$00[8]
 	byte	$03, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00, $00
 objmem
-	long	0[369]
+	long	0[370]
 stackspace
 	long	0[1]
 	org	COG_BSS_START

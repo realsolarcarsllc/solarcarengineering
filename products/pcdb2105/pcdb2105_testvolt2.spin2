@@ -150,7 +150,7 @@ pub night() | count, interval, dayok
 
   led_pattern := 1 ' blink 1/8 duty 
 
-  vpvinput.start_drv( PIN_VPV , 99000 , -7300 )
+  vpvinput.start_drv( PIN_VPV , 99000 , -7300 ) 
 
   repeat while is_day<>1
      v12input.set_output(   (led_pattern>>( (_getcnt()>>24)&15 ))&1  ) ' Service LED, 
@@ -164,6 +164,12 @@ pub night() | count, interval, dayok
 
         term.str( string(",") )
         term.dec( vpvinput.mv() )
+
+        term.str( string(",") )
+        term.dec( v12input.raw_gio() )
+
+        term.str( string(",") )
+        term.dec( v12input.raw_vio() )
 
         term.str(string( ",", 13, 10))
 
