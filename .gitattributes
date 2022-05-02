@@ -1,0 +1,6 @@
+
+*.spin2 linguist-language=Propeller-Spin
+
+*.kicad_pcb linguist-detectable
+*.sch linguist-detectable
+
