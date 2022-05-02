@@ -1,7 +1,7 @@
 # pcdb2105
 
 ## 36v to 400v DC-DC MPPT charger
-Full specifications are found in the products folder. 
+Full specifications are found in the master boards folder. 
 
 It is very difficult to design circits and software that operates gracefully when power is limited.
 Therefore, plan on one of these options:
