@@ -208,7 +208,7 @@ PUB set_vmppt( mv )
       ctrl_mppt_mv := 12000 
 
 PUB set_hv_mv( mv )
-   if (mv >= 0) and (mv <= 420000)
+   if (mv >= 0) and (mv <= 451000)
       ctrl_hv_mv := mv/10
 
 PUB set_hv_ma( ma )
