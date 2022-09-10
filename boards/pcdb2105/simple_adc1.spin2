@@ -107,6 +107,45 @@ pub start_drv( pin, vio_cal, gio_cal ) | measurement_vio
 
   waitx( 8192 * 5 )
 
+pub start_mux( pin, vio_cal, gio_cal ) | measurement_vio 
+  '' Start ADC and calibrate by driving IO pin high and low.
+
+
+  io_pin := pin
+  ' cal_h := vio_cal ' this doesn't need to be stored
+  cal_l := gio_cal 
+
+  ' ADC init  
+  wrpin( io_pin, p_adc   | p_adc_1x )            ' 
+  wxpin( io_pin, 13 )	                         ' SINC2 sample mode, 8192 clocks 
+  _dirh( io_pin )
+
+
+  wrpin( io_pin, p_adc   | p_adc_gio )     ' ADC input with digital output
+
+
+  waitx( 8192 * 5 )
+
+
+  measurement_gio  := rdpin(io_pin)
+
+  wrpin( io_pin, p_adc   | p_adc_vio )     ' ADC input with digital output
+
+  waitx( 8192 * 5 )
+
+  measurement_vio  := rdpin(io_pin)
+
+
+  wrpin( io_pin, p_adc   | p_adc_1x )          ' ADC input 
+
+
+ 
+  'adc_tempf_mv := ((3300<<10)/(adc_tempf_vio-adc_tempf_vss) * (rdpin( adc_tempf )-adc_tempf_vss))>>10
+
+  scale_factor := ((vio_cal-gio_cal)<<10)/(measurement_vio-measurement_gio) 
+
+  waitx( 8192 * 5 )
+
 
 pub stop()
 '' Shut down the smart pin
