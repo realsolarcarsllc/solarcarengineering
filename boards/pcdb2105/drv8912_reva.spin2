@@ -49,6 +49,10 @@ con { max7219 registers }
   D_RAW  = 0                                                    ' decode as raw segments
   D_DEC  = 1                                                    ' decode as decimal digit (10 = dash)
 
+' Registers
+  OP_CTRL_1 = $8
+  OP_CTRL_2 = $9
+  OP_CTRL_3 = $a
 
 var
 
@@ -61,6 +65,8 @@ var
   byte  decodebits                                              ' state of decode bits
   byte  segments[8]                                             ' internal segments register buffer
 
+  byte  shadow[16]                                              ' Size TBD
+  long  shadow_op_ctrl
 
 pub null()
 
@@ -87,6 +93,28 @@ pub start() | khz
   waitms(1)
 
   inout($1A ,$40)  ' Keep half bridges active after open load detect
+
+  shadow[OP_CTRL_1] := 0 
+  shadow[OP_CTRL_2] := 0 
+  shadow[OP_CTRL_3] := 0 
+  shadow_op_ctrl := 0 
+
+pub drvh( op_pin ) | bit_shift
+  bit_shift := (op_pin-1)<<1 
+  shadow_op_ctrl := (shadow_op_ctrl & ( !(3<<bit_shift))) | (2<<bit_shift)
+
+pub drvl( op_pin ) | bit_shift
+  bit_shift := (op_pin-1)<<1 
+  shadow_op_ctrl := (shadow_op_ctrl & ( !(3<<bit_shift))) | (1<<bit_shift)
+
+pub fltl( op_pin ) | bit_shift
+  bit_shift := (op_pin-1)<<1 
+  shadow_op_ctrl := (shadow_op_ctrl & ( !(3<<bit_shift))) | (0<<bit_shift)
+
+pub refresh( op_pin ) | ctrl_reg 
+  ctrl_reg := (op_pin-1)>>2 
+  inout($8+ctrl_reg , (shadow_op_ctrl>>(ctrl_reg*8)) & $ff ) 
+
 
 
 pub stop()
