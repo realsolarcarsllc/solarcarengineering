@@ -4,7 +4,7 @@
 ''   Purpose.... Spin2 library for common PLC functions
 ''               Only Ton is implemented right now. 
 ''   Author..... 
-''               Copyright (c) 2021 Real Solar Cars, LLC
+''               Copyright (c) 2022 Real Solar Cars, LLC
 ''               -- see below for terms of use
 ''   E-mail..... 
 ''   Started....
@@ -41,6 +41,28 @@ pub ton(in, statevarnum, time) : out
       out := 1
   else 
     plc_states[statevarnum] := 0
+
+
+'' Note: before using tof(), use tof_init()
+'' to prevent initial active output
+
+pub tof(in, statevarnum, time) : out
+
+  out := 0 
+  if (in == 1) or (in==-1)
+      out := 1
+      plc_states[statevarnum] := 0
+  else 
+    plc_states[statevarnum] := plc_states[statevarnum] + looptime
+    if plc_states[statevarnum] > time
+      plc_states[statevarnum] := time
+      out := 0
+    else
+      out := 1
+
+
+pub tof_init( statevarnum ) 
+      plc_states[statevarnum] := 1_000_000_000
 
 
 
