@@ -610,7 +610,7 @@ adc_isr
 	if_a	mov	buck_start_counter,#0 
 
 	' 12v reverse current detection
-		cmps	measurements+IND_I12,##-3000 wcz 'TEST -500 to sensitive for car use
+		cmps	measurements+IND_I12,##-4000 wcz 'TEST -500 to sensitive for car use
 	if_b	mov	fault,#2
 	if_b	mov	buck_start_counter,#0 
 

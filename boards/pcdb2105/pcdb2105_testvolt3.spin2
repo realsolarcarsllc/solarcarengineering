@@ -1,0 +1,482 @@
+'' =================================================================================================
+''
+''   File....... pcdb2105_testvolt2.spin2
+''   Purpose.... Test program to verify functionality of CAN interface
+''               power converters, and day/night switching.
+''     
+''               For 2014 Chevy Volt   NOT FOR RELEASE
+'' 
+''               Charges the 12v when contactors are open.
+''               Feeds the HV system when contactors are closed, main contactor circuit.
+''               Uses the APU (14v power module) enable to determine contactor
+''               closed condition. 
+''               The power output is usually not enough to charge
+''               when the car is powered on. 
+''
+''   Author..... 
+''               Copyright (c) 2021 Real Solar Cars, LLC
+''
+''   License.... Our solar car specific software is licensed under GNU GPLv3.
+''               -- see below for terms of use
+'' 
+''   E-mail..... 
+''   Started....
+''   Updated.... 
+''
+'' =================================================================================================
+
+
+con { timing }
+  _xtlfreq = 24_000_000
+  _clkfreq = 80_000_000
+
+
+con { terminal }
+
+  BR_TERM  = 230_400                                            ' terminal baud rate
+
+  #0, T_PST, T_ANSI                                             ' terminal types
+
+  T_TYPE = T_PST
+
+
+con { fixed io pins }
+
+  RX1    = 63  { I }                                            ' programming / debug
+  TX1    = 62  { O }
+
+
+  LED2   = 57  { O }                                            ' Eval and Edge LEDs
+  LED1   = 56  { O }
+
+
+con 
+  PIN_TEMPB  = 39 
+  PIN_TEMPF  = 38
+  PIN_TEMPT  = 52 
+
+  PIN_V12IN    = 27
+  PIN_VPV      = 31 
+
+obj
+
+' main                                                          ' * master Spin cog
+  'relays : "drv8912_reva"                                       '   DRV8912 (inline PASM2)
+  term : "jm_fullduplexserial"                                  ' * serial IO for terminal
+  ansi : "jm_ansi"                                              '   ANSI terminal control sequences
+  dcdc  : "pcdb2105_libvolt1"                                       ' *
+  'can1   : "canbus_500k_reva"                                   ' *
+  can1   : "CANbus controller"                                   ' *
+  v12input  : "led_adc"  
+  vpvinput  : "simple_adc1"  
+
+  'bucktest : "buck_reve"
+' * uses cog when loaded
+
+
+
+var
+
+'  long  adc_out[20]
+
+  long  Vpv,Ipv,Ppv
+  long  lastVpv,lastIpv,lastPpv     ' to compute deltas for MPPT
+
+  long  Vhv,Ihv,Phv
+  long  effic
+'  long  user_vpv
+
+  long  ident
+  byte  dlc,tx_data[8]
+
+  long  apu_voltage
+  long  apu_on, apu_fresh, apu_last_tick
+  long  last_apu_on
+  long  print
+  long  pout
+  long  is_day 
+  long  led_pattern
+
+  long  becm_voltage_raw, becm_voltage
+ 
+
+pub main() | x, a
+
+  ' Check 12v for reverse polarity 
+  v12input.start_drv( PIN_V12IN , 99000, -7200 )
+  x := v12input.mv()
+
+  if v12input.mv()>-1000 
+    pinl(26) 'PVV RPP open, vreg will turn it on later
+    ' if pin 26 is left floating, the HT0440 will detect it as high
+    'pinh(25) '12V RPP switch closed, so we can draw battery power
+    pinl(25) '12V RPP switch open, turned on by plc later
+
+    waitx(800_000) ' fixme 10mS
+
+  setup()
+
+  if v12input.mv()>-1000
+        term.str( string("12v check OK, ") )
+        term.dec( x )
+        term.str(string( "mV", 13, 10))
+  else
+        term.str( string("reverse polarity error, 12v input, ") )
+        term.dec( x )
+        term.str(string( "mV", 13, 10))
+
+
+{{
+  ' object stop test
+  term.str(string( "Buck on", 13, 10))
+  a := bucktest.Start()
+  long[a] := 300 ' set duty cycle
+  waitms(2000)
+  term.str(string( "Buck off", 13, 10))
+  bucktest.stop()
+  term.str(string( "Buck off completed", 13, 10))
+
+  repeat 
+}}
+
+  ' FIXME  ground through relay board
+  'relays.drvl(8)
+  'relays.refresh(8) 
+{
+  if 1 
+    repeat
+      relays.drvh(3)
+      relays.refresh(1) 
+      waitms(1000)
+      term.str(string( "click", 13, 10))
+      relays.drvl(3)                       ' FIXME  board has D17 backwards
+      relays.refresh(1) 
+      waitms(1000)
+}
+  ' is_day := 1   ' TEST use 
+  repeat
+    if is_day==1
+      day()
+    else
+      night()
+
+
+pub night() | count, interval, dayok
+  
+  dayok := 0 
+  interval := 2*clkfreq
+  count := _getcnt() - interval ' first run immediate
+
+  led_pattern := 1 ' blink 1/8 duty 
+
+  vpvinput.start_drv( PIN_VPV , 99000 , -7300 ) 
+
+  repeat while is_day<>1
+     v12input.set_output(   (led_pattern>>( (_getcnt()>>24)&15 ))&1  ) ' Service LED, 
+     v12input.update()     ' This ADC needs frequent servicing to switch from ADC reading to LED driving
+
+     if (_getcnt()-count) > interval
+        count := count + interval
+
+        term.str( string("Night,") )
+        term.dec( v12input.mv() )
+
+        term.str( string(",") )
+        term.dec( vpvinput.mv() )
+
+        term.str( string(",") )
+        term.dec( v12input.raw_gio() )
+
+        term.str( string(",") )
+        term.dec( v12input.raw_vio() )
+
+        term.str(string( ",", 13, 10))
+
+
+        if vpvinput.mv() > 14_000   ' 29_000 might be a good value 
+          dayok := dayok + 1
+          if dayok > 5
+            is_day := 1
+        else
+          dayok := 0 
+          is_day := 0 
+     
+  
+
+  vpvinput.stop() ' release the smartpin for VPV sensing so vreg cog can use it
+
+
+
+pub day() | x, t, i, a, buffer, id, nightok
+'  user_vpv := 10000 
+
+	'	pinh(25) '12V RPP 
+
+  apu_voltage:= 12000
+  apu_on := 0 
+  apu_fresh := 0
+  apu_last_tick := 0 
+  nightok := 0 
+  buffer := 0 
+
+  term.str( string("DAY",13,10) )
+  'can1.Loopback(true)
+  'can1.setFilter(0,can1.ALL,$0,$1d4)
+
+  'pinhigh(3) ' can terminators on, MCP2562FD won't work without termination
+  'pinhigh(4) ' can bus break
+  pinlow(5) ' can transceiver enable
+
+  can1.Start(6,7,500000,0)'Powertrain expansion  can1.LOOPBACK) ' FIXME, needs more sysclock or better coding, 24M is way too low
+  'can1.Start(6,7,500000, can1.LOOPBACK) ' FIXME, needs more sysclock or better coding, 24M is way too low
+
+  'can1.Start(8,9,500000,0)'can1.LOOPBACK) ' FIXME, needs more sysclock or better coding, 24M is way too low
+  
+
+
+  
+  dcdc.start( )
+  dcdc.set_hv_mv(390_000) 
+  if 0 
+    repeat
+      'relays.inout(10,8)
+      waitms(1)
+
+'
+  'repeat
+  '   waitms(1)
+
+  repeat while is_day==1
+     dcdc.set_buck_on()  ' Volt program still has extra logic inside
+
+     led_pattern := dcdc.get_led_pattern() 
+     v12input.set_output(   (led_pattern>>( (_getcnt()>>24)&3 ))&1  ) ' Service LED
+     v12input.update()     ' This ADC needs frequent servicing to switch from ADC reading to LED driving
+
+     if dcdc.measurement_count <> t
+        t := dcdc.measurement_count
+
+        'term.dec( dcdc.buck_mv_external )
+        term.dec( v12input.mv() )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_mv )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.pv_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.pv_mv )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_ma )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_mv )
+        term.str( string(",") )
+
+        pout := (dcdc.buck_ma*dcdc.buck_mv + dcdc.hv_ma*dcdc.hv_mv)
+        term.dec(  pout/1000  )
+        term.str( string("mW,") )
+
+        ' Efficiency  may be off a few percent due to measurement accuracy
+        term.dec(  pout / ((dcdc.pv_ma*dcdc.pv_mv)/100)     )
+        term.str( string("%,") )
+
+
+        term.dec( dcdc.tempf() )
+        term.str( string("C,") )
+
+        term.dec( dcdc.tempt() )
+        term.str( string("C,") )
+
+        term.dec( dcdc.tempb() )
+        term.str( string("C,") )
+
+
+        term.dec( dcdc.mppt_mv() )
+        term.str( string(",") )
+
+        term.dec( dcdc.buck_output_limit_count() )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_output_limit_count() )
+        term.str( string(",") )
+
+        term.dec( apu_on )
+        term.str( string(",") )
+
+        term.dec( apu_voltage )
+        term.str( string(",") )
+
+        term.dec( dcdc.relayin6_mv() )
+        term.str( string(",") )
+
+        term.dec( becm_voltage )
+        term.str( string("mV,") )
+
+        term.dec( dcdc.get_buck_on() )
+        term.str( string(",") )
+
+        term.dec( dcdc.hv_mv_external  )
+        term.str(string( 13, 10))
+     
+
+
+        ' Nighttime detection, if voltage below setpoint  and not CC mode 
+        if dcdc.get_buck_on() and (  (dcdc.buck_mv_setpoint()-dcdc.buck_mv())>200  )
+           if dcdc.buck_ma()<500  ' this is tricky due to drift in the hall current sensor
+              nightok := nightok + 1
+              if nightok > 10 
+                 is_day := 0 
+           else
+              nightok := 0 
+        else
+           nightok := 0 
+        
+
+        'waitx(clkfreq/10 )   ' console rate limit
+
+        dlc:= 8 
+        ident:= $350
+
+        a := dcdc.buck_ma()       ' Must do atomic read 
+        tx_data[0] := (a>>8)&$FF
+        tx_data[1] := (a   )&$FF
+
+        a := dcdc.hv_ma()
+        tx_data[2] := (a>>8)&$FF
+        tx_data[3] := (a   )&$FF
+        
+        tx_data[4] := (dcdc.tempf())&$FF
+        tx_data[5] := (dcdc.tempt())&$FF
+        a := dcdc.pv_mv()
+        tx_data[6] := (a>>8)&$FF
+        tx_data[7] := (a   )&$FF
+        can1.sendStr(ident,can1.STANDARD,@dlc)
+
+
+
+	'waitms(300)
+
+{
+     if can1.rxIdent                                          ' Check if an ID was received
+       if can1.rxIdent > $7FF
+         term.Hex(can1.rxIdent)
+       else
+         term.Hex(can1.rxIdent)
+       'fds.Tx($09)                                         
+       if can1.rxRTR
+         term.Str(string("remote transmission request"))
+       else
+         a := can1.DataAddress                           ' DataAddress returns the address of a string of data bytes
+         repeat byte[a++]                                  '  The first byte contains the string length 
+           term.Hex(byte[a++])                            '  Display bytes
+           term.str(string(" "))
+       term.str(string( 13, 10))
+       can1.NextID                                       ' Clear current ID buffer and advance to next
+}
+{     if apu_fresh
+         if (_getcnt()-apu_last_tick) > (clkfreq<<3)     ' 8 second timeout
+           apu_fresh := 0 
+           apu_on    := 0                                   ' Failsafe 
+     if apu_on
+       if last_apu_on<>apu_on
+          term.str(string("ON",13,10))
+       dcdc.set_buck_off()
+       dcdc.set_hv_on()
+     else
+       if last_apu_on<>apu_on
+          term.str(string("OFF",13,10))
+       dcdc.set_hv_off() 
+       dcdc.set_buck_on()
+     last_apu_on:= apu_on
+}
+
+     if (id := can1.readRxBuffer(buffer)) <> -1             ' Check the receive buffer for new data
+       'print := 1                                       ' dump all CAN data
+
+       if id==$210   ' For test BECM unit 
+         becm_voltage_raw := ((can1.rxData(1)>>4)|(can1.rxData(0)<<4))&$fff
+         becm_voltage := becm_voltage_raw * 125 ' convert to mV
+         dcdc.report_becm_mv( becm_voltage )
+
+       if id==$216   ' For 2014 BECM unit 
+         becm_voltage_raw := ((can1.rxData(2)&$ff)|(can1.rxData(1)<<8))&$fff
+         becm_voltage := becm_voltage_raw * 125 ' convert to mV
+         dcdc.report_becm_mv( becm_voltage )
+         'print:=1                                         ' option to print raw data 
+
+
+
+       if print
+         print:=0  
+         term.hex(id)                                     '  Display 29 bits if extended ID
+         term.str(string(" "))
+         if can1.rxRTR()                                      ' Check RTR bit
+           term.str(string("Remote Transmission Request"))
+         else
+           repeat i from 0 to can1.rxDLC() - 1
+             term.hex(can1.rxData(i))
+             term.str(string(" "))
+         term.str(string( 13, 10))
+
+
+  dcdc.stop()
+  can1.stop()
+  pinhigh(5) ' can transceiver disable
+  term.str(string("NIGHT", 13, 10))
+
+
+
+
+pub setup()
+
+'' Setup IO and objects for application
+  'relays.start()
+
+  term.tstart(BR_TERM)                                          ' start terminal io
+
+
+pub wait_for_terminal(clear)
+
+'' Wait for terminal to be open and key pressed
+
+  term.rxflush()
+  term.rx()
+  if (clear)
+    clear_screen()
+
+
+pub clear_screen()
+
+  if (T_TYPE == T_PST)
+    term.tx(term.HOME)
+    term.tx(term.CLS)
+  else
+    term.str(ansi.hide_cursor())
+    term.str(ansi.home())
+    term.str(ansi.cls())
+
+
+con { license }
+
+{{
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+}}
