@@ -1,20 +1,21 @@
 '' =================================================================================================
 ''
-''   File....... pcdb2105_testvolt2.spin2
-''   Purpose.... Test program to verify functionality of CAN interface
-''               power converters, and day/night switching.
+''   File....... pcdb2105_testvolt3.spin2
+''   Purpose.... 
+''               
 ''     
-''               For 2014 Chevy Volt   NOT FOR RELEASE
+''               For 2014 Chevy Volt  
 '' 
-''               Charges the 12v when contactors are open.
-''               Feeds the HV system when contactors are closed, main contactor circuit.
-''               Uses the APU (14v power module) enable to determine contactor
-''               closed condition. 
-''               The power output is usually not enough to charge
-''               when the car is powered on. 
+''               Charges the 12v. 
+''               Charging while parked. 
+''               Should be shut off before opening doors 
+''               to prevent check engine light.
+''               Automatic day/night switching, 
+''                  though not entirely glitch free. 
+''               Reports measurement over CAN bus. 
 ''
 ''   Author..... 
-''               Copyright (c) 2021 Real Solar Cars, LLC
+''               Copyright (c) 2022 Real Solar Cars, LLC
 ''
 ''   License.... Our solar car specific software is licensed under GNU GPLv3.
 ''               -- see below for terms of use
@@ -64,7 +65,7 @@ obj
   'relays : "drv8912_reva"                                       '   DRV8912 (inline PASM2)
   term : "jm_fullduplexserial"                                  ' * serial IO for terminal
   ansi : "jm_ansi"                                              '   ANSI terminal control sequences
-  dcdc  : "pcdb2105_libvolt1"                                       ' *
+  dcdc  : "pcdb2105_libvolt2"                                       ' *
   'can1   : "canbus_500k_reva"                                   ' *
   can1   : "CANbus controller"                                   ' *
   v12input  : "led_adc"  
@@ -97,6 +98,7 @@ var
   long  is_day 
   long  led_pattern
 
+  long  tx_can_counter
   long  becm_voltage_raw, becm_voltage
  
 
@@ -193,7 +195,7 @@ pub night() | count, interval, dayok
         term.str(string( ",", 13, 10))
 
 
-        if vpvinput.mv() > 14_000   ' 29_000 might be a good value 
+        if vpvinput.mv() > 27_000   ' 29_000 might be a good value 
           dayok := dayok + 1
           if dayok > 5
             is_day := 1
@@ -337,26 +339,11 @@ pub day() | x, t, i, a, buffer, id, nightok
         else
            nightok := 0 
         
+        send_can_data()
 
         'waitx(clkfreq/10 )   ' console rate limit
 
-        dlc:= 8 
-        ident:= $350
 
-        a := dcdc.buck_ma()       ' Must do atomic read 
-        tx_data[0] := (a>>8)&$FF
-        tx_data[1] := (a   )&$FF
-
-        a := dcdc.hv_ma()
-        tx_data[2] := (a>>8)&$FF
-        tx_data[3] := (a   )&$FF
-        
-        tx_data[4] := (dcdc.tempf())&$FF
-        tx_data[5] := (dcdc.tempt())&$FF
-        a := dcdc.pv_mv()
-        tx_data[6] := (a>>8)&$FF
-        tx_data[7] := (a   )&$FF
-        can1.sendStr(ident,can1.STANDARD,@dlc)
 
 
 
@@ -430,6 +417,53 @@ pub day() | x, t, i, a, buffer, id, nightok
   pinhigh(5) ' can transceiver disable
   term.str(string("NIGHT", 13, 10))
 
+
+pub send_can_data() | a 
+  dlc:= 8 
+  if tx_can_counter > 1
+      tx_can_counter := 0 
+  if tx_can_counter < 0
+      tx_can_counter := 0 
+
+  if tx_can_counter==0
+        ident:= $350
+
+        a := dcdc.hv_mv()/20       ' Must do atomic read 
+        tx_data[0] := (a>>8)&$FF
+        tx_data[1] := (a   )&$FF
+
+        a := dcdc.hv_ma()
+        tx_data[2] := (a>>8)&$FF
+        tx_data[3] := (a   )&$FF
+        
+        tx_data[4] := (dcdc.tempf())&$FF
+        tx_data[5] := (dcdc.tempt())&$FF
+        a := dcdc.pv_mv()
+        tx_data[6] := (a>>8)&$FF
+        tx_data[7] := (a   )&$FF
+        can1.sendStr(ident,can1.STANDARD,@dlc)
+
+
+  if tx_can_counter==1
+        ident:= $352
+
+        a := dcdc.buck_mv()       ' Must do atomic read 
+        tx_data[0] := (a>>8)&$FF
+        tx_data[1] := (a   )&$FF
+
+        a := dcdc.buck_ma()
+        tx_data[2] := (a>>8)&$FF
+        tx_data[3] := (a   )&$FF
+        
+        tx_data[4] := (dcdc.tempb())&$FF
+        tx_data[5] := (dcdc.tempf())&$FF
+
+        a := dcdc.mppt_mv()
+        tx_data[6] := (a>>8)&$FF
+        tx_data[7] := (a   )&$FF
+        can1.sendStr(ident,can1.STANDARD,@dlc)
+
+  tx_can_counter := tx_can_counter + 1 
 
 
 

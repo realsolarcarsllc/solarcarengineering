@@ -111,7 +111,7 @@ pub main() | x, t, i, a, pout
 '
   'repeat
   '   waitms(1)
-
+  dcdc.set_hv_mv( 340_000 ) 
   repeat
      if dcdc.measurement_count <> t
         t := dcdc.measurement_count

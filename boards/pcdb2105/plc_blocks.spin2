@@ -2,7 +2,7 @@
 ''
 ''   File....... plc_blocks.spin2
 ''   Purpose.... Spin2 library for common PLC functions
-''               Only Ton is implemented right now. 
+''               Only Ton, Tof is implemented right now. 
 ''   Author..... 
 ''               Copyright (c) 2022 Real Solar Cars, LLC
 ''               -- see below for terms of use
@@ -18,11 +18,13 @@ var
 
   long  looptime 
   long  lastcnt 
-  long  plc_states[32]
+  long  plc_states[33]
 
-pub start()
+pub start() | statevarnum
   lastcnt:= _getcnt()
   looptime:=0 
+  repeat statevarnum from 0 to 31
+     plc_states[statevarnum] := 0
 
 pub update() | clocks, count
   count := _getcnt()
